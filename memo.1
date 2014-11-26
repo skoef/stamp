@@ -1,0 +1,108 @@
+.\" Manpage for memo.
+.\" Any errors or typos, contact niko@ideabyte.net.
+
+.TH man 1 "21 Nov 2014" "1.4" "memo man page"
+.SH NAME
+memo \- unix-style note-taking software
+.SH SYNOPSIS
+memo [OPTIONS]
+.SH DESCRIPTION
+Memo is a note-taking software for POSIX compatible operating systems.
+The short notes are saved to user's home directory in ~/.memo file
+by default.
+.SH OPTIONS
+.IP "-a <content> [yyyy-MM-dd]"
+Add a new note
+.IP "-d <id>"
+Delete note by id
+.IP -D
+Delete all notes
+.IP "-e <path>"
+Export notes as html to a file
+.IP "-f <search>"
+Find notes by text search
+.IP "-F <regex>"
+Find notes by regular expression
+.IP -i
+Add multiple notes from stdin
+.IP "-l <n>"
+Show latest n notes
+.IP "-m <id>"
+Mark note status as done
+.IP "-M <id>"
+Mark note status as undone
+.IP -o
+Show all notes organized by date
+.IP -p
+Show current memo file path
+.IP "-P [id]"
+Show postponed or mark note as postponed
+.IP -R
+Delete all notes marked as done
+.IP "-r <id> [content]/[yyyy-MM-dd]"
+Replace note content or date
+.IP -s
+Show all notes except postponed. Same as typing command memo
+.IP -T
+Mark all notes as done
+.IP -u
+Show only undone notes
+.IP -
+Read from stdin
+.IP -h
+Show short help and exit. This page
+.IP -V
+Show version number of program
+.SH EXAMPLES
+Add a new note:
+       memo -a "Remember to buy milk!"
+.PP        
+Add a new note with custom date:
+       memo -a "File taxes" 2014-10-14
+.PP
+Search memos by string:
+       memo -f buy
+.PP
+Output:
+       4    2014-10-10    Remember to buy milk
+.PP
+Replace record 4 with new text:
+       memo -r 4 "Remember to buy cheese"
+.PP
+Add note from stdin:
+       echo "My new note" | memo -
+.PP
+Mark note as postponed:
+       memo -P 4
+.PP
+Show postponed notes:
+       memo -P
+.PP
+Postponed notes are not shown by default. Postponed note
+can be marked as undone or done normally using -m or -M flag.
+Only undone notes can be postponed.
+.PP
+It's possible to change the location (and name) of the .memo
+file. Create $HOME/.memorc with a line MEMO_PATH=/path/you/would/like
+, Memo will use that path instead of the default $HOME/.memo path.
+.PP
+It's also possible to set memo path using an environment variable.
+For example: export MEMO_PATH=/path/to/some/file. If MEMO_PATH
+environment variable is set that will be used. If it's not set,
+Memo will try to read $HOME/.memorc. If the file does not exist
+or has errors, Memo will use $HOME/.memo file to store the notes.
+.PP
+Since version 1.3 -D option asks for confirmation before deleting all
+notes. It's possible to disable this confirmation via ~/.memorc
+property. To disable the confirmation add MEMO_CONFIRM_DELETE=no to
+~/.memorc file.
+.SH FILES
+.I $HOME/.memo
+.I $HOME/.memorc
+.SH AUTHORS
+Written by Niko Rosvall, first version of help written by Jari Aalto.
+.SH COPYRIGHT
+Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>
+.PP
+Released under license GPL-3+. For more information, see
+http://www.gnu.org/licenses
