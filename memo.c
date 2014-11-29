@@ -91,7 +91,7 @@ static char *get_memo_conf_value(const char *prop);
 static int   is_valid_date_format(const char *date, int silent_errors);
 static int   file_exists(const char *path);
 static void  remove_content_newlines(char *content);
-static int   add_note(char *content, const char *date);
+static int   add_note(char *category, char *content, const char *date);
 static int   replace_note(int id, const char *data);
 static int   get_next_id();
 static int   delete_note(int id);
@@ -364,7 +364,7 @@ static int add_notes_from_stdin()
 	line = strtok(buffer, "\n");
 
 	while (line != NULL) {
-		add_note(line, NULL);
+		add_note("stdin", line, NULL);
 		line = strtok(NULL, "\n");
 	}
 
@@ -1760,7 +1760,7 @@ static int replace_note(int id, const char *data)
  * Note will be marked with status "U" which means it's "undone".  "D"
  * means "done". With status P, note is marked as postponed.
  */
-static int add_note(char *content, const char *date)
+static int add_note(char *category, char *content, const char *date)
 {
 	FILE *fp = NULL;
 	time_t t;
@@ -1818,29 +1818,29 @@ SYNOPSIS\n\
 \n\
 OPTIONS\n\
 \n\
-    -a <content> [yyyy-MM-dd]        Add a new note with optional date\n\
-    -d <id>                          Delete note by id\n\
-    -D                               Delete all notes\n\
-    -e <path>                        Export notes as html to a file\n\
-    -f <search>                      Find notes by search term\n\
-    -F <regex>                       Find notes by regular expression\n\
-    -i                               Read from stdin until ^D\n\
-    -l <n>                           Show latest n notes\n\
-    -m <id>                          Mark note status as done\n\
-    -M <id>                          Mark note status as undone\n\
-    -o                               Show all notes organized by date\n\
-    -p                               Show current memo file path\n\
-    -P [id]                          Show postponed or mark note as postponed\n\
-    -R                               Delete all notes marked as done\n\
-    -r <id> [content]/[yyyy-MM-dd]   Replace note content or date\n\
-    -s                               Show all notes except postponed\n\
-                                     (Same as simply running memo)\n\
-    -T                               Mark all notes as done\n\
-    -u                               Show only undone notes\n\
+    -a <category> <content> [yyyy-MM-dd]  Add a new note with optional date\n\
+    -d <id>                               Delete note by id\n\
+    -D                                    Delete all notes\n\
+    -e <path>                             Export notes as html to a file\n\
+    -f <search>                           Find notes by search term\n\
+    -F <regex>                            Find notes by regular expression\n\
+    -i                                    Read from stdin until ^D\n\
+    -l <n>                                Show latest n notes\n\
+    -m <id>                               Mark note status as done\n\
+    -M <id>                               Mark note status as undone\n\
+    -o                                    Show all notes organized by date\n\
+    -p                                    Show current memo file path\n\
+    -P [id]                               Show postponed or mark note as postponed\n\
+    -R                                    Delete all notes marked as done\n\
+    -r <id> [content]/[yyyy-MM-dd]        Replace note content or date\n\
+    -s                                    Show all notes except postponed\n\
+                                          (Same as simply running memo)\n\
+    -T                                    Mark all notes as done\n\
+    -u                                    Show only undone notes\n\
 \n\
-    -                                Read from stdin\n\
-    -h                               Show short help and exit. This page\n\
-    -V                               Show version number of program\n\
+    -                                     Read from stdin\n\
+    -h                                    Show short help and exit. This page\n\
+    -V                                    Show version number of program\n\
 \n\
 For more information and examples see man memo(1).\n\
 \n\
@@ -1909,15 +1909,19 @@ int main(int argc, char *argv[])
 		has_valid_options = 1;
 
 		switch(c) {
-	
+
 		case 'a':
-			if (argv[optind]) {
-				if (is_valid_date_format(argv[optind], 0) == 0)
-					add_note(optarg, argv[optind]);
+			if (argc < 4) {
+				fail(stderr, "Error: no content given\n");
+				usage();
+				return -1;
 			}
-			else {
-				add_note(optarg,NULL);
-			}
+
+			/* if last arg is valid date, use it */
+			if (is_valid_date_format(argv[(argc - 1)], 1) == 0)
+				add_note(argv[2], argv[3], argv[(argc - 1)]);
+			else
+				add_note(argv[2], argv[3], NULL);
 			break;
 		case 'd':
 			delete_note(atoi(optarg));
@@ -1970,7 +1974,7 @@ int main(int argc, char *argv[])
 				printf("Missing argument date or content, see -h\n");
 				free(path);
 				return 0;
-			}	
+			}
 			break;
 		}
 		case 'R':
@@ -1990,7 +1994,7 @@ int main(int argc, char *argv[])
 			break;
 		case '?':
 			if (optopt == 'a')
-				printf("-a missing an argument <content>\n");
+				printf("-a missing an argument <category>\n");
 			else if (optopt == 'd')
 				printf("-d missing an argument <id>\n");
 			else if (optopt == 'e')
@@ -2021,7 +2025,7 @@ int main(int argc, char *argv[])
 		stdinline = read_file_line(stdin);
 
 		if (stdinline) {
-			add_note(stdinline, NULL);
+			add_note("stdinline", stdinline, NULL);
 			free(stdinline);
 		}
 	}
