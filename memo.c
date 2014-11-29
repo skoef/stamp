@@ -83,38 +83,38 @@ typedef enum {
 /* Function declarations */
 static char *read_file_line(FILE *fp);
 static int  add_notes_from_stdin();
-static char *get_memo_file_path();
+static char *get_memo_file_path(char *category);
 static char *get_memo_default_path();
 static char *get_memo_conf_path();
-static char *get_temp_memo_path();
+static char *get_temp_memo_path(char *category);
 static char *get_memo_conf_value(const char *prop);
 static int   is_valid_date_format(const char *date, int silent_errors);
 static int   file_exists(const char *path);
 static void  remove_content_newlines(char *content);
 static int   add_note(char *category, char *content, const char *date);
-static int   replace_note(int id, const char *data);
-static int   get_next_id();
-static int   delete_note(int id);
-static int   show_notes(NoteStatus_t status);
-static int   show_notes_tree();
+static int   replace_note(char *category, int id, const char *data);
+static int   get_next_id(char *category);
+static int   delete_note(char *category, int id);
+static int   show_notes(char *category, NoteStatus_t status);
+static int   show_notes_tree(char *category);
 static int   count_file_lines(FILE *fp);
 static char  *note_part_replace(NotePart_t part, char *note_line, const char *data);
-static int   search_notes(const char *search);
-static int   search_regexp(const char *regexp);
-static const char *export_html(const char *path);
+static int   search_notes(char *category, const char *search);
+static int   search_regexp(char *category, const char *regexp);
+static const char *export_html(char *category, const char *path);
 static void  output_default(char *line);
 static void  output_undone(char *line);
 static void  output_postponed(char *line);
 static void  output_without_date(char *line);
-static void  show_latest(int count);
+static void  show_latest(char *category, int count);
 static FILE *get_memo_file_ptr();
 static FILE *get_memo_tmpfile_ptr();
 static void  usage();
 static void  fail(FILE *out, const char *fmt, ...);
-static int   delete_all();
+static int   delete_all(char *category);
 static void  show_memo_file_path();
 static NoteStatus_t get_note_status(const char *line);
-static int   mark_note_status(NoteStatus_t status, int id);
+static int   mark_note_status(char *category, NoteStatus_t status, int id);
 static void  note_status_replace(char *line, char new, char old);
 static void  mark_as_done(FILE *fp, char *line);
 static void  mark_as_undone(FILE *fp, char *line);
@@ -261,12 +261,12 @@ static void fail(FILE *out, const char *fmt, ...)
  *
  * Return NULL on failure.
  */
-static FILE *get_memo_tmpfile_ptr()
+static FILE *get_memo_tmpfile_ptr(char *category)
 {
 	FILE *fp = NULL;
 	char *tmp = NULL;
 
-	tmp = get_temp_memo_path();
+	tmp = get_temp_memo_path(category);
 
 	if (tmp == NULL) {
 		fail(stderr, "%s: error getting a temp file\n", __func__);
@@ -292,13 +292,13 @@ static FILE *get_memo_tmpfile_ptr()
  * Caller must close the file pointer after calling the function
  * succesfully.
  */
-static FILE *get_memo_file_ptr(char *mode)
+static FILE *get_memo_file_ptr(char *category, char *mode)
 {
 	FILE *fp = NULL;
-	char *path = get_memo_file_path();
+	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s: error getting ~./memo path\n",
+		fail(stderr,"%s: error getting memo path\n",
 			__func__);
 		return NULL;
 	}
@@ -434,7 +434,7 @@ static char *read_file_line(FILE *fp)
  * If the file is missing or is empty, return 0
  * On error, returns -1
  */
-static int get_next_id()
+static int get_next_id(char *category)
 {
 	int id = 0;
 	FILE *fp = NULL;
@@ -442,7 +442,7 @@ static int get_next_id()
 	int lines = 0;
 	int current = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 
 	lines = count_file_lines(fp);
 
@@ -486,14 +486,14 @@ static int get_next_id()
  *
  * Returns the number of notes. Returns -1 on failure
  */
-static int show_notes(NoteStatus_t status)
+static int show_notes(char *category, NoteStatus_t status)
 {
 	FILE *fp = NULL;
 	char *line;
 	int count = 0;
 	int lines = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 
 	lines = count_file_lines(fp);
 	count = lines;
@@ -613,14 +613,14 @@ error:
  *
  * Returns the count of the notes. On failure returns -1.
  */
-static int show_notes_tree()
+static int show_notes_tree(char *category)
 {
 	int count = 0;
 	int lines = 0;
 	FILE *fp = NULL;
 	int date_index = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fp);
 	
 	if (lines == -1) {
@@ -726,14 +726,14 @@ static int show_notes_tree()
 /* Search if a note contains the search term.
  * Returns the count of found notes or -1 if function fails.
  */
-static int search_notes(const char *search)
+static int search_notes(char *category, const char *search)
 {
 	FILE *fp = NULL;
 	int count = 0;
 	char *line;
 	int lines = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 
 	lines = count_file_lines(fp);
 
@@ -775,7 +775,7 @@ static int search_notes(const char *search)
 /* Search using regular expressions (POSIX Basic Regular Expression syntax)
  * Returns the count of found notes or -1 if functions fails.
  */
-static int search_regexp(const char *regexp)
+static int search_regexp(char *category, const char *regexp)
 {
 	int count = 0;
 	regex_t regex;
@@ -792,7 +792,7 @@ static int search_regexp(const char *regexp)
 		return -1;
 	}
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
@@ -943,7 +943,7 @@ static void mark_as_postponed(FILE *fp, char *line)
 
  * id is ignored when status is DELETE_DONE or ALL_DONE.
  */
-static int mark_note_status(NoteStatus_t status, int id)
+static int mark_note_status(char *category, NoteStatus_t status, int id)
 {
 	FILE *fp = NULL;
 	FILE *tmpfp = NULL;
@@ -951,7 +951,7 @@ static int mark_note_status(NoteStatus_t status, int id)
 	char *tmp;
 	int lines = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
@@ -966,7 +966,7 @@ static int mark_note_status(NoteStatus_t status, int id)
 		return -1;
 	}
 
-	tmp = get_temp_memo_path();
+	tmp = get_temp_memo_path(category);
 
 	if (tmp == NULL) {
 		fail(stderr,"%s: error getting a temp file\n",
@@ -974,7 +974,7 @@ static int mark_note_status(NoteStatus_t status, int id)
 		return -1;
 	}
 
-	char *memofile = get_memo_file_path();
+	char *memofile = get_memo_file_path(category);
 
 	if (memofile == NULL) {
 		fail(stderr,"%s: failed to get ~/.memo file path\n",
@@ -1095,7 +1095,7 @@ static void output_undone(char *line)
 /* Export current .memo file to a html file
  * Return the path of the html file, or NULL on failure.
  */
-static const char *export_html(const char *path)
+static const char *export_html(char *category, const char *path)
 {
 	FILE *fp = NULL;
 	FILE *fpm = NULL;
@@ -1109,7 +1109,7 @@ static const char *export_html(const char *path)
 		return NULL;
 	}
 
-	fpm = get_memo_file_ptr("r");
+	fpm = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fpm);
 
 	if (lines == -1) {
@@ -1152,7 +1152,7 @@ static const char *export_html(const char *path)
 
 
 /* Show latest n notes */
-static void show_latest(int n)
+static void show_latest(char *category, int n)
 {
 	FILE *fp = NULL;
 	char *line;
@@ -1160,7 +1160,7 @@ static void show_latest(int n)
 	int start;
 	int current = 0;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 
 	lines = count_file_lines(fp);
 
@@ -1196,7 +1196,7 @@ static void show_latest(int n)
  * simply removes .memo file.
  * Returns 0 on success, -1 on failure.
  */
-static int delete_all()
+static int delete_all(char *category)
 {
 	char *confirm = NULL;
 	int ask = 1;
@@ -1211,10 +1211,10 @@ static int delete_all()
 		free(confirm);
 	}
 
-	char *path = get_memo_file_path();
+	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s error getting .memo file path\n", __func__);
+		fail(stderr,"%s error getting memo file path\n", __func__);
 		return -1;
 	}
 
@@ -1242,9 +1242,9 @@ static int delete_all()
 /* Delete a note by id.
  * Returns 0 on success and -1 on failure.
  */
-static int delete_note(int id)
+static int delete_note(char *category, int id)
 {
-	return mark_note_status(DELETE, id);
+	return mark_note_status(category, DELETE, id);
 }
 
 
@@ -1419,7 +1419,7 @@ static char *get_memo_default_path()
  * Returns the path to .memo file or NULL on failure.  Caller is
  * responsible for freeing the return value.
  */
-static char *get_memo_file_path()
+static char *get_memo_file_path(char *category)
 {
 	char *path = NULL;
 	char *env_path = NULL;
@@ -1481,9 +1481,9 @@ static char *get_memo_file_path()
  *
  * Returns NULL on failure.
  */
-static char *get_temp_memo_path()
+static char *get_temp_memo_path(char *category)
 {
-	char *orig = get_memo_file_path();
+	char *orig = get_memo_file_path(category);
 
 	if (orig == NULL)
 		return NULL;
@@ -1615,7 +1615,7 @@ error_clean_up:
  *
  * Returns 0 on success, -1 on failure.
  */
-static int replace_note(int id, const char *data)
+static int replace_note(char *category, int id, const char *data)
 {
 	FILE *tmpfp = NULL;
 	FILE *fp = NULL;
@@ -1623,12 +1623,12 @@ static int replace_note(int id, const char *data)
 	char *tmpfile = NULL;
 	int lines = 0;
 
-	tmpfp = get_memo_tmpfile_ptr();
+	tmpfp = get_memo_tmpfile_ptr(category);
 
 	if (tmpfp == NULL)
 		return -1;
 
-	fp = get_memo_file_ptr("r");
+	fp = get_memo_file_ptr(category, "r");
 
 	lines = count_file_lines(fp);
 
@@ -1647,7 +1647,7 @@ static int replace_note(int id, const char *data)
 		return -1;
 	}
 
-	memofile = get_memo_file_path();
+	memofile = get_memo_file_path(category);
 
 	if (memofile == NULL) {
 		fail(stderr, "%s failed to get memo file path\n", __func__);
@@ -1657,7 +1657,7 @@ static int replace_note(int id, const char *data)
 		return -1;
 	}
 
-	tmpfile = get_temp_memo_path();
+	tmpfile = get_temp_memo_path(category);
 	
 	if (tmpfile == NULL) {
 		fail(stderr, "%s failed to get memo tmp path\n", __func__);
@@ -1774,14 +1774,14 @@ static int add_note(char *category, char *content, const char *date)
 
 	remove_content_newlines(content);
 
-	fp = get_memo_file_ptr("a");
+	fp = get_memo_file_ptr(category, "a");
 
 	if (fp == NULL) {
 		fail(stderr,"%s: Error opening ~/.memo\n", __func__);
 		return -1;
 	}
 
-	id = get_next_id();
+	id = get_next_id(category);
 
 	if (id == -1)
 		id = 1;
@@ -1859,7 +1859,7 @@ static void show_memo_file_path()
 {
 	char *path = NULL;
 
-	path = get_memo_file_path();
+	path = get_memo_file_path("");
 
 	if (path == NULL) {
 		fail(stderr,"%s: can't retrieve path\n", __func__);
@@ -1879,7 +1879,7 @@ int main(int argc, char *argv[])
 	char *stdinline = NULL;
 	int has_valid_options = 0;
 
-	path = get_memo_file_path();
+	path = get_memo_file_path("");
 
 	if (path == NULL)
 		return -1;
@@ -1901,8 +1901,8 @@ int main(int argc, char *argv[])
 	opterr = 0;
 
 	if (argc == 1) {
-		/* No arguments given, so just show notes */
-		show_notes(-1);
+		usage();
+		return -1;
 	}
 
 	while ((c = getopt(argc, argv, "a:d:De:f:F:hil:m:M:opPr:RsTuV")) != -1){
@@ -1924,19 +1924,19 @@ int main(int argc, char *argv[])
 				add_note(argv[2], argv[3], NULL);
 			break;
 		case 'd':
-			delete_note(atoi(optarg));
+			delete_note("testing", atoi(optarg));
 			break;
 		case 'D':
-			delete_all();
+			delete_all("testing");
 			break;
 		case 'e':
-			export_html(optarg);
+			export_html("testing", optarg);
 			break;
 		case 'f':
-			search_notes(optarg);
+			search_notes("testing", optarg);
 			break;
 		case 'F':
-			search_regexp(optarg);
+			search_regexp("testing", optarg);
 			break;
 		case 'h':
 			usage();
@@ -1945,30 +1945,30 @@ int main(int argc, char *argv[])
 			add_notes_from_stdin();
 			break;
 		case 'o':
-			show_notes_tree();
+			show_notes_tree("testing");
 			break;
 		case 'l':
-			show_latest(atoi(optarg));
+			show_latest("testing", atoi(optarg));
 			break;
 		case 'm':
-			mark_note_status(DONE, atoi(optarg));
+			mark_note_status("testing", DONE, atoi(optarg));
 			break;
-                case 'M':
-	                mark_note_status(UNDONE, atoi(optarg));
-	                break;
+		case 'M':
+			mark_note_status("testing", UNDONE, atoi(optarg));
+			break;
 		case 'p':
 			show_memo_file_path();
 			break;
 		case 'P':
 			if (argv[optind])
-				mark_note_status(POSTPONED, atoi(argv[optind]));
+				mark_note_status("testing", POSTPONED, atoi(argv[optind]));
 			else
-				show_notes(POSTPONED);
+				show_notes("testing", POSTPONED);
 			break;
 		case 'r': {
 			int id = atoi(optarg);
 			if (argv[optind]) {
-				replace_note(id, argv[optind]);
+				replace_note("testing", id, argv[optind]);
 			}
 			else {
 				printf("Missing argument date or content, see -h\n");
@@ -1978,16 +1978,16 @@ int main(int argc, char *argv[])
 			break;
 		}
 		case 'R':
-			mark_note_status(DELETE_DONE, -1);
+			mark_note_status("testing", DELETE_DONE, -1);
 			break;
 		case 's':
-			show_notes(-1);
+			show_notes("testing", -1);
 			break;
 		case 'T':
-			mark_note_status(ALL_DONE, -1);
+			mark_note_status("testing", ALL_DONE, -1);
 			break;
 		case 'u':
-			show_notes(UNDONE);
+			show_notes("testing", UNDONE);
 			break;
 		case 'V':
 			printf("Memo version %.1f\n", VERSION);
