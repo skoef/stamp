@@ -58,13 +58,13 @@
 #endif
 #include <sys/stat.h>
 
-#define ARGCHECK(x, y) if (argc < x) { \
-	char *err = (char *)malloc((19 + strlen(y)) * sizeof(char));\
-	sprintf(err, "Error: no %s given\n", y); \
+#define ARGCHECK(x, y, z) if (argc < y) { \
+	char *err = (char *)malloc((19 + strlen(z)) * sizeof(char));\
+	sprintf(err, "Error: -%s missing an argument %s\n", x, z); \
 	fail(stderr, err); \
 	free(err); \
 	usage(); \
-	return -1;\
+	return 1;\
 }
 
 typedef enum {
@@ -1559,8 +1559,8 @@ OPTIONS\n\
     -e <category> <path>                       Export notes as html to a file\n\
     -f <category> <search>                     Find notes by search term\n\
     -F <category> <regex>                      Find notes by regular expression\n\
-    -i                                         Read from stdin until ^D\n\
-    -l <n>                                     Show latest n notes\n\
+    -i <category>                              Read from stdin until ^D\n\
+    -l <category> <n>                          Show latest n notes\n\
     -o <category>                              Show all notes organized by date\n\
     -p                                         Show current memo file path\n\
     -r <category> <id> [content]/[yyyy-MM-dd]  Replace note content or date\n\
@@ -1604,7 +1604,6 @@ int main(int argc, char *argv[])
 {
 	char *path = NULL;
 	int c;
-	char *stdinline = NULL;
 	int has_valid_options = 0;
 
 	path = get_memo_file_path("");
@@ -1633,13 +1632,13 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hil:o:pr:s:V")) != -1){
+	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:o:pr:s:V")) != -1){
 		has_valid_options = 1;
 
 		switch(c) {
 
 		case 'a':
-			ARGCHECK(4, "content");
+			ARGCHECK("a", 4, "content");
 			/* if last arg is valid date, use it */
 			if (is_valid_date_format(argv[(argc - 1)], 1) == 0)
 				add_note(argv[2], argv[3], argv[(argc - 1)]);
@@ -1647,22 +1646,22 @@ int main(int argc, char *argv[])
 				add_note(argv[2], argv[3], NULL);
 			break;
 		case 'd':
-			ARGCHECK(4, "ID");
+			ARGCHECK("d", 4, "ID");
 			delete_note(argv[2], atoi(argv[3]));
 			break;
 		case 'D':
 			delete_all(optarg);
 			break;
 		case 'e':
-			ARGCHECK(4, "path");
+			ARGCHECK("e", 4, "path");
 			export_html(argv[2], argv[3]);
 			break;
 		case 'f':
-			ARGCHECK(4, "search string");
+			ARGCHECK("f", 4, "search string");
 			search_notes(argv[2], argv[3]);
 			break;
 		case 'F':
-			ARGCHECK(4, "regex");
+			ARGCHECK("F", 4, "regex");
 			search_regexp(argv[2], argv[3]);
 			break;
 		case 'h':
@@ -1675,14 +1674,14 @@ int main(int argc, char *argv[])
 			show_notes_tree(optarg);
 			break;
 		case 'l':
-			ARGCHECK(4, "number");
+			ARGCHECK("l", 4, "number");
 			show_latest(argv[2], atoi(argv[3]));
 			break;
 		case 'p':
 			show_memo_file_path();
 			break;
 		case 'r':
-			ARGCHECK(5, "id, content or date");
+			ARGCHECK("r", 5, "id, content or date");
 			replace_note(argv[2], atoi(argv[3]), argv[4]);
 			break;
 		case 's':
@@ -1691,44 +1690,21 @@ int main(int argc, char *argv[])
 		case 'V':
 			printf("Memo version %.1f\n", VERSION);
 			break;
-		case '?':
-			/* TODO: refactor this */
-			if (optopt == 'a')
-				printf("-a missing an argument <category>\n");
-			else if (optopt == 'd')
-				printf("-d missing an argument <category>\n");
-			else if (optopt == 'D')
-				printf("-D missing an argument <category>\n");
-			else if (optopt == 'e')
-				printf("-e missing an argument <category>\n");
-			else if (optopt == 'f')
-				printf("-f missing an argument <category>\n");
-			else if (optopt == 'F')
-				printf("-F missing an argument <category>\n");
-			else if (optopt == 'l')
-				printf("-l missing an argument <category>\n");
-			else if (optopt == 'o')
-				printf("-o missing an argument <category>\n");
-			else if(optopt == 'r')
-				printf("-r missing an argument <category>\n");
-			else if(optopt == 's')
-				printf("-s missing an argument <category>\n");
-			else
+		case '?': {
+			char copts[11] = "adDefFilors";
+			int coptfound = 0;
+			for (int i = 0; i < strlen(copts); i++) {
+				if (copts[i] == optopt) {
+					coptfound = 1;
+					printf("Error: -%c missing an argument category\n", optopt);
+					usage();
+				}
+			}
+			free(copts);
+			if (coptfound == 0)
 				printf("invalid option '%c', see memo -h for help\n", optopt);
 			break;
 		}
-	}
-
-	/* Handle argument '-' to read line from stdin */
-	if (argc > 1 && *argv[argc - 1] == '-' && strlen(argv[argc - 1]) == 1) {
-
-		has_valid_options = 1;
-
-		stdinline = read_file_line(stdin);
-
-		if (stdinline) {
-			add_note("stdinline", stdinline, NULL);
-			free(stdinline);
 		}
 	}
 
