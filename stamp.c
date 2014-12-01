@@ -1,5 +1,6 @@
-/* Memo is a Unix-style note-taking software.
+/* Stamp is a Unix-style note-taking software.
  *
+ * Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>
  * Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,19 +15,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * stamp.c implements a flexible, Unix-style note-taking software.
+ * It is forked from memo by Niko Rosvall from version 1.4.
  *
- * memo.c implements a flexible, Unix-style note-taking software.
- *
- * If you're interested hacking Memo, please remember:
+ * If you're interested hacking Stamp, please remember:
  * coding style is pretty much the same as for Linux kernel.
  * see https://www.kernel.org/doc/Documentation/CodingStyle
  *
  * When adding features, please consider if they can be
  * accomplished in a sane way with standard unix tools instead.
  *
- * If you port Memo for another platform, please let me know,
- * no reason for that other than it's nice to know where Memo runs.
- * Memo should be fairly portable for POSIX systems. I don't know
+ * If you port Stamp for another platform, please let me know,
+ * no reason for that other than it's nice to know where Stamp runs.
+ * Stamp should be fairly portable for POSIX systems. I don't know
  * about Windows...uninstd.h is not natively available for it(?).
  */
 
@@ -111,7 +112,7 @@ static void  show_memo_file_path();
 
 
 /* Check if given date is in valid date format.
- * Memo assumes the date format to be yyyy-MM-dd.
+ * Stamp assumes the date format to be yyyy-MM-dd.
  *
  * If silent_errors is 1, no error information will be outputted.
  * When silent_errors != 1, error information is outputted to stderr.
@@ -184,7 +185,7 @@ static int file_exists(const char *path)
 }
 
 
-/* This function is used to count lines in .memo and ~/.memorc
+/* This function is used to count lines in .stamp and ~/.stamprc
  * files.
  *
  * Count the lines of the file as a note is always one liner,
@@ -273,7 +274,7 @@ static FILE *get_memo_tmpfile_ptr(char *category)
 }
 
 
-/* Get open FILE* for memo file.
+/* Get open FILE* for stamp file.
  * Returns NULL of failure.
  * Caller must close the file pointer after calling the function
  * succesfully.
@@ -284,7 +285,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode)
 	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s: error getting memo path\n",
+		fail(stderr,"%s: error getting stamp path\n",
 			__func__);
 		return NULL;
 	}
@@ -307,7 +308,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode)
  *
  * Each line is assumed to be the content part of the note.
  *
- * Notes are added to the memo file. Returns -1 on failure, 0 on
+ * Notes are added to the stamp file. Returns -1 on failure, 0 on
  * success.
  */
 static int add_notes_from_stdin()
@@ -362,7 +363,7 @@ static int add_notes_from_stdin()
 
 /* Reads a line from source pointed by FILE*.
  *
- * This function is used to read .memo as well as ~/.memorc
+ * This function is used to read .stamp as well as ~/.stamprc
  * files line by line.
  *
  * Return NULL on failure.
@@ -415,7 +416,7 @@ static char *read_file_line(FILE *fp)
 }
 
 
-/* Simply read all the lines from the .memo file
+/* Simply read all the lines from the .stamp file
  * and return the id of the last line plus one.
  * If the file is missing or is empty, return 0
  * On error, returns -1
@@ -584,7 +585,7 @@ error:
  * For example:
  *
  *   2014-11-01
- *         1   Release Memo 1.3
+ *         1   Do dishes
  *         2   Pay rent
  *   2014-11-02
  *         3   Go shopping
@@ -826,7 +827,7 @@ static void output_default(char *line)
 }
 
 
-/* Export current .memo file to a html file
+/* Export current .stamp file to a html file
  * Return the path of the html file, or NULL on failure.
  */
 static const char *export_html(char *category, const char *path)
@@ -859,10 +860,10 @@ static const char *export_html(char *category, const char *path)
 	fprintf(fp,"<!DOCTYPE html>\n");
 	fprintf(fp, "<html>\n<head>\n");
 	fprintf(fp, "<meta charset=\"UTF-8\">\n");
-	fprintf(fp, "<title>Memo notes</title>\n");
+	fprintf(fp, "<title>Stamp notes</title>\n");
 	fprintf(fp, "<style>pre{font-family: sans-serif;}</style>\n");
 	fprintf(fp, "</head>\n<body>\n");
-	fprintf(fp, "<h1>Notes from Memo</h1>\n");
+	fprintf(fp, "<h1>Notes from Stamp</h1>\n");
 	fprintf(fp, "<table>\n");
 
 	while (lines >= 0) {
@@ -927,7 +928,7 @@ static void show_latest(char *category, int n)
 
 
 /* Deletes all notes. Function actually
- * simply removes .memo file.
+ * simply removes category file in .stamp directory
  * Returns 0 on success, -1 on failure.
  */
 static int delete_all(char *category)
@@ -935,7 +936,7 @@ static int delete_all(char *category)
 	char *confirm = NULL;
 	int ask = 1;
 
-	confirm = get_memo_conf_value("MEMO_CONFIRM_DELETE");
+	confirm = get_memo_conf_value("STAMP_CONFIRM_DELETE");
 
 	if (confirm) {
 
@@ -948,7 +949,7 @@ static int delete_all(char *category)
 	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s error getting memo file path\n", __func__);
+		fail(stderr,"%s error getting stamp file path\n", __func__);
 		return -1;
 	}
 
@@ -983,7 +984,7 @@ static int delete_note(char *category, int id)
 }
 
 
-/* Return the path to $HOME/.memorc.  On failure NULL is returned.
+/* Return the path to $HOME/.stamprc.  On failure NULL is returned.
  * Caller is responsible for freeing the return value.
  */
 static char *get_memo_conf_path()
@@ -1006,8 +1007,8 @@ static char *get_memo_conf_path()
 	/* +1 for \0 byte */
 	len = strlen(env) + 1;
 
-	/* +8 to have space for \"/.memorc\" */
-	conf_path = (char*)malloc( (len + 8) * sizeof(char));
+	/* +8 to have space for \"/.stamprc\" */
+	conf_path = (char*)malloc( (len + 9) * sizeof(char));
 
 	if (conf_path == NULL) {
 		fail(stderr, "%s: malloc failed\n", __func__);
@@ -1015,17 +1016,17 @@ static char *get_memo_conf_path()
 	}
 
 	strcpy(conf_path, env);
-	strcat(conf_path, "/.memorc");
+	strcat(conf_path, "/.stamprc");
 
 	return conf_path;
 }
 
 
-/* ~/.memorc file format is following:
+/* ~/.stamprc file format is following:
  *
  * PROPERTY=value
  *
- * e.g MEMO_PATH=/home/niko/.memo
+ * e.g STAMP_PATH=/home/reinier/.stamprc
  *
  * This function returns the value of the property. NULL is returned on
  * failure. On success, caller must free the return value.
@@ -1109,7 +1110,7 @@ static char *get_memo_conf_value(const char *prop)
 }
 
 
-/* Returns the default path. Default path is ~/.memo
+/* Returns the default path. Default path is ~/.stamp
  * 
  * Caller must free the return value. On failure NULL is returned.
  */
@@ -1131,8 +1132,8 @@ static char *get_memo_default_path()
 	/* +1 for \0 byte */
 	len = strlen(env) + 1;
 
-	/* +6 to have space for \"/.memo\" */
-	path = (char*)malloc( (len + 6) * sizeof(char));
+	/* +6 to have space for \"/.stamp\" */
+	path = (char*)malloc( (len + 7) * sizeof(char));
 
 	if (path == NULL) {
 		fail(stderr,"%s: malloc failed\n", __func__);
@@ -1140,27 +1141,27 @@ static char *get_memo_default_path()
 	}
 
 	strcpy(path, env);
-	strcat(path, "/.memo");
+	strcat(path, "/.stamp");
 
 	return path;
 }
 
 
-/* Function reads MEMO_PATH environment variable to see if it's set and
- * uses value from it as a path.  When MEMO_PATH is not set, function
- * reads $HOME/.memorc file. If the file is not found $HOME/.memo is
+/* Function reads STAMP_PATH environment variable to see if it's set and
+ * uses value from it as a path.  When STAMP_PATH is not set, function
+ * reads $HOME/.stamprc file. If the file is not found $HOME/.stamprc is
  * used as a fallback path.
  *
- * Returns the path to .memo file or NULL on failure.  Caller is
- * responsible for freeing the return value.
+ * Returns the path to category file in .stamp directory or NULL on failure.
+ * Caller is responsible for freeing the return value.
  */
 static char *get_memo_file_path(char *category)
 {
 	char *path = NULL;
 	char *env_path = NULL;
 
-	env_path = getenv("MEMO_PATH");
-	/* Try and see if environment variable MEMO_PATH is set
+	env_path = getenv("STAMP_PATH");
+	/* Try and see if environment variable STAMP_PATH is set
 	 * and use value from it as a path */
 	if (env_path != NULL) {
 		/* +1 for \0 byte */
@@ -1184,32 +1185,32 @@ static char *get_memo_file_path(char *category)
 
 
 	if (!file_exists(conf_path)) {
-		/* Config file not found, so fallback to ~/.memo */
+		/* Config file not found, so fallback to ~/.stamp */
 		path = get_memo_default_path();
 
 	} else {
 		/* Configuration file found, read .memo location
 		   from it */
-		path = get_memo_conf_value("MEMO_PATH");
+		path = get_memo_conf_value("STAMP_PATH");
 
 		if (path == NULL) {
 			/* Failed to get the path. Most likely user did not
-			 * specify MEMO_PATH in the configuration file at all
+			 * specify STAMP_PATH in the configuration file at all
 			 * and configuration file is used for setting other
-			 * properties like MEMO_CONFIRM_DELETE.
+			 * properties like STAMP_CONFIRM_DELETE.
 			 *
-			 * Let's default to ~/.memo
+			 * Let's default to ~/.stamp
 			 */
 			path = get_memo_default_path();
 		}
 
 	}
 
-	/* prepare memo_path */
+	/* prepare stamp path */
 	mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR);
 	chmod(path, 0700);
 
-	/* append category to memo_path */
+	/* append category to stamp path */
 	if (strlen(category) > 0) {
 		path = (char *)realloc(path, (strlen(path) + strlen(category) + 2) * sizeof(char));
 		strcat(path, "/");
@@ -1222,8 +1223,7 @@ static char *get_memo_file_path(char *category)
 }
 
 
-/* Returns temporary .memo.tmp file.  It will be in the same directory
- * as the original .memo file.
+/* Returns temporary file.  It will be in the stamp directory.
  *
  * Returns NULL on failure.
  */
@@ -1345,7 +1345,7 @@ error_clean_up:
  * Data can be either a valid date or content.  Replace operation is
  * simply done by creating a temporary file, existing notes are written
  * line by line to it. Line that has matching id will be written with
- * new data. Then the original memo file is replaced with the temporary
+ * new data. Then the original stamp file is replaced with the temporary
  * one.
  *
  * Returns 0 on success, -1 on failure.
@@ -1385,7 +1385,7 @@ static int replace_note(char *category, int id, const char *data)
 	memofile = get_memo_file_path(category);
 
 	if (memofile == NULL) {
-		fail(stderr, "%s failed to get memo file path\n", __func__);
+		fail(stderr, "%s failed to get stamp file path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -1393,9 +1393,9 @@ static int replace_note(char *category, int id, const char *data)
 	}
 
 	tmpfile = get_temp_memo_path(category);
-	
+
 	if (tmpfile == NULL) {
-		fail(stderr, "%s failed to get memo tmp path\n", __func__);
+		fail(stderr, "%s failed to get stamp tmp path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -1411,7 +1411,7 @@ static int replace_note(char *category, int id, const char *data)
 			char *endptr;
 			int curr_id = strtol(line, &endptr, 10);
 			if (curr_id == id) {
-				/* Found the note to be replaced 
+				/* Found the note to be replaced
 				 * Check if user wants to replace the date
 				 * by validating the data as date. Otherwise
 				 * assume content is being replaced.
@@ -1434,7 +1434,7 @@ static int replace_note(char *category, int id, const char *data)
 
 					fprintf(tmpfp, "%s\n", new_line);
 					free(new_line);
-					
+
 				} else {
 					char *new_line = NULL;
 					new_line = note_part_replace(NOTE_CONTENT,
@@ -1480,7 +1480,7 @@ static int replace_note(char *category, int id, const char *data)
 }
 
 
-/* .memo file format is following:
+/* .stamp file format is following:
  *
  * id     date           content
  * |      |              |
@@ -1509,7 +1509,7 @@ static int add_note(char *category, char *content, const char *date)
 	fp = get_memo_file_ptr(category, "a");
 
 	if (fp == NULL) {
-		fail(stderr,"%s: Error opening memo path\n", __func__);
+		fail(stderr,"%s: Error opening stamp path\n", __func__);
 		return -1;
 	}
 
@@ -1546,7 +1546,7 @@ static void usage()
 #define HELP "\
 SYNOPSIS\n\
 \n\
-    memo [options]\n\
+    stamp [options]\n\
 \n\
 OPTIONS\n\
 \n\
@@ -1559,7 +1559,7 @@ OPTIONS\n\
     -i <category>                              Read from stdin until ^D\n\
     -l <category> <n>                          Show latest n notes\n\
     -o <category>                              Show all notes organized by date\n\
-    -p                                         Show current memo file path\n\
+    -p                                         Show current stamp file path\n\
     -r <category> <id> [content]/[yyyy-MM-dd]  Replace note content or date\n\
     -s <category>                              Show all notes\n\
 \n\
@@ -1567,9 +1567,10 @@ OPTIONS\n\
     -h                                         Show short help and exit. This page\n\
     -V                                         Show version number of program\n\
 \n\
-For more information and examples see man memo(1).\n\
+For more information and examples see man stamp(1).\n\
 \n\
 AUTHORS\n\
+    Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>\n\
     Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>\n\
 \n\
     Released under license GPL-3+. For more information, see\n\
@@ -1613,7 +1614,7 @@ int main(int argc, char *argv[])
 			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if (fd == -1) {
-			fail(stderr,"%s: failed to create empty memo\n",
+			fail(stderr,"%s: failed to create empty stamp\n",
 				__func__);
 			free(path);
 			return -1;
@@ -1685,7 +1686,7 @@ int main(int argc, char *argv[])
 			show_notes(optarg);
 			break;
 		case 'V':
-			printf("Memo version %.1f\n", VERSION);
+			printf("Stamp version %.1f\n", VERSION);
 			break;
 		case '?': {
 			char copts[11] = "adDefFilors";
@@ -1699,14 +1700,14 @@ int main(int argc, char *argv[])
 			}
 			free(copts);
 			if (coptfound == 0)
-				printf("invalid option '%c', see memo -h for help\n", optopt);
+				printf("invalid option '%c', see stamp -h for help\n", optopt);
 			break;
 		}
 		}
 	}
 
 	if (argc > 1 && !has_valid_options)
-		printf("invalid input, see memo -h for help\n");
+		printf("invalid input, see stamp -h for help\n");
 
 	free(path);
 

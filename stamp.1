@@ -1,0 +1,89 @@
+.\" Manpage for stamp.
+.\" Any errors or typos, contact reinier@skoef.net.
+
+.TH man 1 "21 Nov 2014" "1.4" "stamp man page"
+.SH NAME
+stamp \- unix-style note-taking software
+.SH SYNOPSIS
+stamp [OPTIONS]
+.SH DESCRIPTION
+Stamp is a note-taking software for POSIX compatible operating systems.
+The short notes are saved by category in the ~/.stamp directory by default.
+.SH OPTIONS
+.IP "-a <category> <content> [yyyy-MM-dd]"
+Add a new note
+.IP "-d <category> <id>"
+Delete note by id
+.IP -D <category>
+Delete all notes
+.IP "-e <category> <path>"
+Export notes as html to a file
+.IP "-f <category> <search>"
+Find notes by text search
+.IP "-F <category> <regex>"
+Find notes by regular expression
+.IP -i <category>
+Add multiple notes from stdin
+.IP "-l <category> <n>"
+Show latest n notes
+.IP -o
+Show all notes organized by date
+.IP -p
+Show current stamp file path
+.IP "-r <category> <id> [content]/[yyyy-MM-dd]"
+Replace note content or date
+.IP -s <category>
+Show all notes except postponed. Same as typing command stamp
+.IP -
+Read from stdin
+.IP -h
+Show short help and exit. This page
+.IP -V
+Show version number of program
+.SH EXAMPLES
+Add a new note in the movies category:
+       stamp -a movies "Cloudy with a chance of meatballs"
+.PP
+Add a new note in category gear with custom date:
+       stamp -a garden "Neighbour borrowed lawnmower" 2014-10-14
+.PP
+Search note by string:
+       stamp -f garden mower
+.PP
+Output:
+       4    2014-10-10    Neighbour borrowed lawnmower
+.PP
+Replace record 4 in category with new text:
+       stamp -r 4 "Neighbour borrowed chainsaw"
+.PP
+Add note from stdin:
+       echo "My new note" | stamp -i random
+.PP
+It's possible to change the location (and name) of the .stamp
+file. Create $HOME/.stamprc with a line STAMP_PATH=/path/you/would/like
+, Stamp will use that path instead of the default $HOME/.stamp path.
+.PP
+It's also possible to set stamp path using an environment variable.
+For example: export STAMP_PATH=/path/to/some/file. If STAMP_PATH
+environment variable is set that will be used. If it's not set,
+Stamp will try to read $HOME/.stamprc. If the file does not exist
+or has errors, Stamp will use $HOME/.stamp file to store the notes.
+.PP
+The -D option asks for confirmation before deleting all
+notes. It's possible to disable this confirmation via ~/.stamprc
+property. To disable the confirmation add STAMP_CONFIRM_DELETE=no to
+~/.stamprc file.
+.SH FILES
+.I $HOME/.stamp
+.I $HOME/.stamprc
+.SH HISTORY
+Being used to take notes with Stampnote on OS X, I was looking for a command line variant. I almost found this in memo from Niko Rosvall, but instead of taking notes on tasks todo, I'd rather take notes in certain categories. That's why I forked memo on version 1.4 and renamed it to stamp. I would like to thanks Niko for his work and will keep merging his progress into stamp where applicable.
+.SH AUTHORS
+Originally written by Niko Rosvall as memo (getmemo.org), forked by Reinier Schoof to fit his needs.
+.SH COPYRIGHT
+Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>
+
+Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>
+.PP
+Released under license GPL-3+. For more information, see
+http://www.gnu.org/licenses
