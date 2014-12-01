@@ -20,13 +20,13 @@ clean:
 	rm *.o
 
 install: all
-	if [ ! -d $(PREFIX)/share/man/man1 ];then	\
-		mkdir -p $(PREFIX)/share/man/man1;	\
+	if [ ! -d $(PREFIX)/man/man1 ];then	\
+		mkdir -p $(PREFIX)/man/man1;	\
 	fi
-	cp stamp.1 $(PREFIX)/share/man/man1/
-	gzip $(PREFIX)/share/man/man1/stamp.1
+	cp stamp.1 $(PREFIX)/man/man1/
+	gzip $(PREFIX)/man/man1/stamp.1
 	cp stamp $(PREFIX)/bin/
 
 uninstall:
 	rm $(PREFIX)/bin/stamp
-	rm $(PREFIX)/share/man/man1/stamp.1.gz
+	rm $(PREFIX)/man/man1/stamp.1.gz
