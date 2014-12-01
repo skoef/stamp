@@ -273,7 +273,7 @@ static FILE *get_memo_tmpfile_ptr(char *category)
 }
 
 
-/* Get open FILE* for .memo file.
+/* Get open FILE* for memo file.
  * Returns NULL of failure.
  * Caller must close the file pointer after calling the function
  * succesfully.
@@ -1191,7 +1191,7 @@ static char *get_memo_file_path(char *category)
 		/* Configuration file found, read .memo location
 		   from it */
 		path = get_memo_conf_value("MEMO_PATH");
-		
+
 		if (path == NULL) {
 			/* Failed to get the path. Most likely user did not
 			 * specify MEMO_PATH in the configuration file at all
@@ -1203,6 +1203,17 @@ static char *get_memo_file_path(char *category)
 			path = get_memo_default_path();
 		}
 
+	}
+
+	/* prepare memo_path */
+	mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR);
+	chmod(path, 0700);
+
+	/* append category to memo_path */
+	if (strlen(category) > 0) {
+		path = (char *)realloc(path, (strlen(path) + strlen(category) + 2) * sizeof(char));
+		strcat(path, "/");
+		strcat(path, category);
 	}
 
 	free(conf_path);
