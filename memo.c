@@ -58,6 +58,14 @@
 #endif
 #include <sys/stat.h>
 
+#define ARGCHECK(x, y) if (argc < x) { \
+	char *err = (char *)malloc((19 + strlen(y)) * sizeof(char));\
+	sprintf(err, "Error: no %s given\n", y); \
+	fail(stderr, err); \
+	free(err); \
+	usage(); \
+	return -1;\
+}
 
 typedef enum {
 	DONE = 1,
@@ -103,8 +111,6 @@ static int   search_notes(char *category, const char *search);
 static int   search_regexp(char *category, const char *regexp);
 static const char *export_html(char *category, const char *path);
 static void  output_default(char *line);
-static void  output_undone(char *line);
-static void  output_postponed(char *line);
 static void  output_without_date(char *line);
 static void  show_latest(char *category, int count);
 static FILE *get_memo_file_ptr();
@@ -513,12 +519,7 @@ static int show_notes(char *category, NoteStatus_t status)
 		line = read_file_line(fp);
 
 		if (line) {
-			if (status == POSTPONED)
-				output_postponed(line);
-			else if (status == UNDONE)
-				output_undone(line);
-			else
-				output_default(line);
+			output_default(line);
 			free(line);
 		}
 
@@ -1067,27 +1068,6 @@ static int mark_note_status(char *category, NoteStatus_t status, int id)
 static void output_default(char *line)
 {
 	if (get_note_status(line) != POSTPONED)
-		printf("%s\n", line);
-}
-
-
-/* Output notes which are postponed.
- * Called from show_notes when command line option -P
- * is used.
- */
-static void output_postponed(char *line)
-{
-	if (get_note_status(line) == POSTPONED)
-		printf("%s\n", line);
-}
-
-
-/* Output notes with status UNDONE.
- * Called when argument -u is passed for the program.
- */
-static void output_undone(char *line)
-{
-	if (get_note_status(line) == UNDONE)
 		printf("%s\n", line);
 }
 
@@ -1818,29 +1798,22 @@ SYNOPSIS\n\
 \n\
 OPTIONS\n\
 \n\
-    -a <category> <content> [yyyy-MM-dd]  Add a new note with optional date\n\
-    -d <id>                               Delete note by id\n\
-    -D                                    Delete all notes\n\
-    -e <path>                             Export notes as html to a file\n\
-    -f <search>                           Find notes by search term\n\
-    -F <regex>                            Find notes by regular expression\n\
-    -i                                    Read from stdin until ^D\n\
-    -l <n>                                Show latest n notes\n\
-    -m <id>                               Mark note status as done\n\
-    -M <id>                               Mark note status as undone\n\
-    -o                                    Show all notes organized by date\n\
-    -p                                    Show current memo file path\n\
-    -P [id]                               Show postponed or mark note as postponed\n\
-    -R                                    Delete all notes marked as done\n\
-    -r <id> [content]/[yyyy-MM-dd]        Replace note content or date\n\
-    -s                                    Show all notes except postponed\n\
-                                          (Same as simply running memo)\n\
-    -T                                    Mark all notes as done\n\
-    -u                                    Show only undone notes\n\
+    -a <category> <content> [yyyy-MM-dd]       Add a new note with optional date\n\
+    -d <category> <id>                         Delete note by id\n\
+    -D <category>                              Delete all notes\n\
+    -e <category> <path>                       Export notes as html to a file\n\
+    -f <category> <search>                     Find notes by search term\n\
+    -F <category> <regex>                      Find notes by regular expression\n\
+    -i                                         Read from stdin until ^D\n\
+    -l <n>                                     Show latest n notes\n\
+    -o <category>                              Show all notes organized by date\n\
+    -p                                         Show current memo file path\n\
+    -r <category> <id> [content]/[yyyy-MM-dd]  Replace note content or date\n\
+    -s <category>                              Show all notes\n\
 \n\
-    -                                     Read from stdin\n\
-    -h                                    Show short help and exit. This page\n\
-    -V                                    Show version number of program\n\
+    -                                          Read from stdin\n\
+    -h                                         Show short help and exit. This page\n\
+    -V                                         Show version number of program\n\
 \n\
 For more information and examples see man memo(1).\n\
 \n\
@@ -1905,18 +1878,13 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	while ((c = getopt(argc, argv, "a:d:De:f:F:hil:m:M:opPr:RsTuV")) != -1){
+	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hil:o:pr:s:V")) != -1){
 		has_valid_options = 1;
 
 		switch(c) {
 
 		case 'a':
-			if (argc < 4) {
-				fail(stderr, "Error: no content given\n");
-				usage();
-				return -1;
-			}
-
+			ARGCHECK(4, "content");
 			/* if last arg is valid date, use it */
 			if (is_valid_date_format(argv[(argc - 1)], 1) == 0)
 				add_note(argv[2], argv[3], argv[(argc - 1)]);
@@ -1924,19 +1892,23 @@ int main(int argc, char *argv[])
 				add_note(argv[2], argv[3], NULL);
 			break;
 		case 'd':
-			delete_note("testing", atoi(optarg));
+			ARGCHECK(4, "ID");
+			delete_note(argv[2], atoi(argv[3]));
 			break;
 		case 'D':
-			delete_all("testing");
+			delete_all(optarg);
 			break;
 		case 'e':
-			export_html("testing", optarg);
+			ARGCHECK(4, "path");
+			export_html(argv[2], argv[3]);
 			break;
 		case 'f':
-			search_notes("testing", optarg);
+			ARGCHECK(4, "search string");
+			search_notes(argv[2], argv[3]);
 			break;
 		case 'F':
-			search_regexp("testing", optarg);
+			ARGCHECK(4, "regex");
+			search_regexp(argv[2], argv[3]);
 			break;
 		case 'h':
 			usage();
@@ -1945,74 +1917,49 @@ int main(int argc, char *argv[])
 			add_notes_from_stdin();
 			break;
 		case 'o':
-			show_notes_tree("testing");
+			show_notes_tree(optarg);
 			break;
 		case 'l':
-			show_latest("testing", atoi(optarg));
-			break;
-		case 'm':
-			mark_note_status("testing", DONE, atoi(optarg));
-			break;
-		case 'M':
-			mark_note_status("testing", UNDONE, atoi(optarg));
+			ARGCHECK(4, "number");
+			show_latest(argv[2], atoi(argv[3]));
 			break;
 		case 'p':
 			show_memo_file_path();
 			break;
-		case 'P':
-			if (argv[optind])
-				mark_note_status("testing", POSTPONED, atoi(argv[optind]));
-			else
-				show_notes("testing", POSTPONED);
-			break;
-		case 'r': {
-			int id = atoi(optarg);
-			if (argv[optind]) {
-				replace_note("testing", id, argv[optind]);
-			}
-			else {
-				printf("Missing argument date or content, see -h\n");
-				free(path);
-				return 0;
-			}
-			break;
-		}
-		case 'R':
-			mark_note_status("testing", DELETE_DONE, -1);
+		case 'r':
+			ARGCHECK(5, "id, content or date");
+			replace_note(argv[2], atoi(argv[3]), argv[4]);
 			break;
 		case 's':
-			show_notes("testing", -1);
-			break;
-		case 'T':
-			mark_note_status("testing", ALL_DONE, -1);
-			break;
-		case 'u':
-			show_notes("testing", UNDONE);
+			show_notes(optarg, -1);
 			break;
 		case 'V':
 			printf("Memo version %.1f\n", VERSION);
 			break;
 		case '?':
+			/* TODO: refactor this */
 			if (optopt == 'a')
 				printf("-a missing an argument <category>\n");
 			else if (optopt == 'd')
-				printf("-d missing an argument <id>\n");
+				printf("-d missing an argument <category>\n");
+			else if (optopt == 'D')
+				printf("-D missing an argument <category>\n");
 			else if (optopt == 'e')
-				printf("-e missing an argument <path>\n");
+				printf("-e missing an argument <category>\n");
 			else if (optopt == 'f')
-				printf("-f missing an argument <search>\n");
+				printf("-f missing an argument <category>\n");
 			else if (optopt == 'F')
-				printf("-F missing an argument <regex>\n");
+				printf("-F missing an argument <category>\n");
 			else if (optopt == 'l')
-				printf("-l missing an argument <n>\n");
-			else if (optopt == 'm')
-				printf("-m missing an argument <id>\n");
-			else if(optopt == 'M')
-				printf("-M missing an argument <id>\n");
+				printf("-l missing an argument <category>\n");
+			else if (optopt == 'o')
+				printf("-o missing an argument <category>\n");
 			else if(optopt == 'r')
-				printf("-r missing an argument <id>\n");
+				printf("-r missing an argument <category>\n");
+			else if(optopt == 's')
+				printf("-s missing an argument <category>\n");
 			else
-				printf("invalid option, see memo -h for help\n");
+				printf("invalid option '%c', see memo -h for help\n", optopt);
 			break;
 		}
 	}
