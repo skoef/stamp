@@ -1,6 +1,5 @@
-/* Stamp is a Unix-style note-taking software.
+/* Memo is a Unix-style note-taking software.
  *
- * Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>
  * Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,19 +14,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * stamp.c implements a flexible, Unix-style note-taking software.
- * It is forked from memo by Niko Rosvall from version 1.4.
  *
- * If you're interested hacking Stamp, please remember:
+ * memo.c implements a flexible, Unix-style note-taking software.
+ *
+ * If you're interested hacking Memo, please remember:
  * coding style is pretty much the same as for Linux kernel.
  * see https://www.kernel.org/doc/Documentation/CodingStyle
  *
  * When adding features, please consider if they can be
  * accomplished in a sane way with standard unix tools instead.
  *
- * If you port Stamp for another platform, please let me know,
- * no reason for that other than it's nice to know where Stamp runs.
- * Stamp should be fairly portable for POSIX systems. I don't know
+ * If you port Memo for another platform, please let me know,
+ * no reason for that other than it's nice to know where Memo runs.
+ * Memo should be fairly portable for POSIX systems. I don't know
  * about Windows...uninstd.h is not natively available for it(?).
  */
 
@@ -59,15 +58,21 @@
 #endif
 #include <sys/stat.h>
 
-#define ARGCHECK(x, y, z) if (argc < y) { \
-	char *err = (char *)malloc((19 + strlen(z)) * sizeof(char));\
-	sprintf(err, "Error: -%s missing an argument %s\n", x, z); \
-	fail(stderr, err); \
-	free(err); \
-	usage(); \
-	return 1;\
-}
 
+typedef enum {
+	DONE = 1,
+	UNDONE = 2,
+	DELETE = 3,
+	DELETE_DONE = 4,
+	STATUS_ERROR = 5,
+	ALL_DONE = 6,
+	POSTPONED = 7
+} NoteStatus_t;
+
+
+/* NOTE_STATUS part is handled by NoteStatus_t
+ * in function mark_note_status.
+ */
 typedef enum {
 	NOTE_DATE = 1,
 	NOTE_CONTENT = 2
@@ -78,41 +83,49 @@ typedef enum {
 /* Function declarations */
 static char *read_file_line(FILE *fp);
 static int  add_notes_from_stdin();
-static char *get_memo_file_path(char *category);
+static char *get_memo_file_path();
 static char *get_memo_default_path();
 static char *get_memo_conf_path();
-static char *get_temp_memo_path(char *category);
+static char *get_temp_memo_path();
 static char *get_memo_conf_value(const char *prop);
 static int   is_valid_date_format(const char *date, int silent_errors);
 static int   file_exists(const char *path);
 static void  remove_content_newlines(char *content);
-static int   add_note(char *category, char *content, const char *date);
-static int   replace_note(char *category, int id, const char *data);
-static int   get_next_id(char *category);
-static int   delete_note(char *category, int id);
-static int   show_notes(char *category);
-static int   show_notes_tree(char *category);
+static int   add_note(char *content, const char *date);
+static int   replace_note(int id, const char *data);
+static int   get_next_id();
+static int   delete_note(int id);
+static int   show_notes(NoteStatus_t status);
+static int   show_notes_tree();
 static int   count_file_lines(FILE *fp);
 static char  *note_part_replace(NotePart_t part, char *note_line, const char *data);
-static int   search_notes(char *category, const char *search);
-static int   search_regexp(char *category, const char *regexp);
-static const char *export_html(char *category, const char *path);
+static int   search_notes(const char *search);
+static int   search_regexp(const char *regexp);
+static const char *export_html(const char *path);
 static void  output_default(char *line);
+static void  output_undone(char *line);
+static void  output_postponed(char *line);
 static void  output_without_date(char *line);
-static void  show_latest(char *category, int count);
+static void  show_latest(int count);
 static FILE *get_memo_file_ptr();
 static FILE *get_memo_tmpfile_ptr();
 static void  usage();
 static void  fail(FILE *out, const char *fmt, ...);
-static int   delete_all(char *category);
+static int   delete_all();
 static void  show_memo_file_path();
+static NoteStatus_t get_note_status(const char *line);
+static int   mark_note_status(NoteStatus_t status, int id);
+static void  note_status_replace(char *line, char new, char old);
+static void  mark_as_done(FILE *fp, char *line);
+static void  mark_as_undone(FILE *fp, char *line);
+static void  mark_as_postponed(FILE *fp, char *line);
 
 
 #define VERSION 1.4
 
 
 /* Check if given date is in valid date format.
- * Stamp assumes the date format to be yyyy-MM-dd.
+ * Memo assumes the date format to be yyyy-MM-dd.
  *
  * If silent_errors is 1, no error information will be outputted.
  * When silent_errors != 1, error information is outputted to stderr.
@@ -185,7 +198,7 @@ static int file_exists(const char *path)
 }
 
 
-/* This function is used to count lines in .stamp and ~/.stamprc
+/* This function is used to count lines in .memo and ~/.memorc
  * files.
  *
  * Count the lines of the file as a note is always one liner,
@@ -248,12 +261,12 @@ static void fail(FILE *out, const char *fmt, ...)
  *
  * Return NULL on failure.
  */
-static FILE *get_memo_tmpfile_ptr(char *category)
+static FILE *get_memo_tmpfile_ptr()
 {
 	FILE *fp = NULL;
 	char *tmp = NULL;
 
-	tmp = get_temp_memo_path(category);
+	tmp = get_temp_memo_path();
 
 	if (tmp == NULL) {
 		fail(stderr, "%s: error getting a temp file\n", __func__);
@@ -274,18 +287,18 @@ static FILE *get_memo_tmpfile_ptr(char *category)
 }
 
 
-/* Get open FILE* for stamp file.
+/* Get open FILE* for .memo file.
  * Returns NULL of failure.
  * Caller must close the file pointer after calling the function
  * succesfully.
  */
-static FILE *get_memo_file_ptr(char *category, char *mode)
+static FILE *get_memo_file_ptr(char *mode)
 {
 	FILE *fp = NULL;
-	char *path = get_memo_file_path(category);
+	char *path = get_memo_file_path();
 
 	if (path == NULL) {
-		fail(stderr,"%s: error getting stamp path\n",
+		fail(stderr,"%s: error getting ~./memo path\n",
 			__func__);
 		return NULL;
 	}
@@ -308,7 +321,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode)
  *
  * Each line is assumed to be the content part of the note.
  *
- * Notes are added to the stamp file. Returns -1 on failure, 0 on
+ * Notes are added to the memo file. Returns -1 on failure, 0 on
  * success.
  */
 static int add_notes_from_stdin()
@@ -351,7 +364,7 @@ static int add_notes_from_stdin()
 	line = strtok(buffer, "\n");
 
 	while (line != NULL) {
-		add_note("stdin", line, NULL);
+		add_note(line, NULL);
 		line = strtok(NULL, "\n");
 	}
 
@@ -363,7 +376,7 @@ static int add_notes_from_stdin()
 
 /* Reads a line from source pointed by FILE*.
  *
- * This function is used to read .stamp as well as ~/.stamprc
+ * This function is used to read .memo as well as ~/.memorc
  * files line by line.
  *
  * Return NULL on failure.
@@ -416,12 +429,12 @@ static char *read_file_line(FILE *fp)
 }
 
 
-/* Simply read all the lines from the .stamp file
+/* Simply read all the lines from the .memo file
  * and return the id of the last line plus one.
  * If the file is missing or is empty, return 0
  * On error, returns -1
  */
-static int get_next_id(char *category)
+static int get_next_id()
 {
 	int id = 0;
 	FILE *fp = NULL;
@@ -429,7 +442,7 @@ static int get_next_id(char *category)
 	int lines = 0;
 	int current = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 
 	lines = count_file_lines(fp);
 
@@ -466,18 +479,21 @@ static int get_next_id(char *category)
 }
 
 
-/* Show all notes.
+/* Show all notes. with status POSTPONED, postponed
+ * notes are shown. With status UNDONE, only undone
+ * notes are shown. Otherwise status is ignored and
+ * all notes are displayed.
  *
  * Returns the number of notes. Returns -1 on failure
  */
-static int show_notes(char *category)
+static int show_notes(NoteStatus_t status)
 {
 	FILE *fp = NULL;
 	char *line;
 	int count = 0;
 	int lines = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 
 	lines = count_file_lines(fp);
 	count = lines;
@@ -497,7 +513,12 @@ static int show_notes(char *category)
 		line = read_file_line(fp);
 
 		if (line) {
-			output_default(line);
+			if (status == POSTPONED)
+				output_postponed(line);
+			else if (status == UNDONE)
+				output_undone(line);
+			else
+				output_default(line);
 			free(line);
 		}
 
@@ -585,21 +606,21 @@ error:
  * For example:
  *
  *   2014-11-01
- *         1   Do dishes
- *         2   Pay rent
+ *         1   U   Release Memo 1.3
+ *         2   D   Pay rent
  *   2014-11-02
- *         3   Go shopping
+ *         3   D   Go shopping
  *
  * Returns the count of the notes. On failure returns -1.
  */
-static int show_notes_tree(char *category)
+static int show_notes_tree()
 {
 	int count = 0;
 	int lines = 0;
 	FILE *fp = NULL;
 	int date_index = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 	lines = count_file_lines(fp);
 	
 	if (lines == -1) {
@@ -705,14 +726,14 @@ static int show_notes_tree(char *category)
 /* Search if a note contains the search term.
  * Returns the count of found notes or -1 if function fails.
  */
-static int search_notes(char *category, const char *search)
+static int search_notes(const char *search)
 {
 	FILE *fp = NULL;
 	int count = 0;
 	char *line;
 	int lines = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 
 	lines = count_file_lines(fp);
 
@@ -754,7 +775,7 @@ static int search_notes(char *category, const char *search)
 /* Search using regular expressions (POSIX Basic Regular Expression syntax)
  * Returns the count of found notes or -1 if functions fails.
  */
-static int search_regexp(char *category, const char *regexp)
+static int search_regexp(const char *regexp)
 {
 	int count = 0;
 	regex_t regex;
@@ -771,7 +792,7 @@ static int search_regexp(char *category, const char *regexp)
 		return -1;
 	}
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
@@ -818,19 +839,263 @@ static int search_regexp(char *category, const char *regexp)
 }
 
 
+/* Replace note status old with new status in line.*/
+static void note_status_replace(char *line, char old, char new)
+{
+	while (*line) {
+		if (*line == old) {
+			*line = new;
+			break;
+		}
+		line++;
+	}
+}
+
+
+/* Get the note status from the note line.
+ * Returns STATUS_ERROR on failure.
+ */
+static NoteStatus_t get_note_status(const char *line)
+{
+	char *token = NULL;
+	char *buffer = NULL;
+	NoteStatus_t status;
+
+	status = STATUS_ERROR;
+
+	/* Sanity check for an empty line */
+	if(strlen(line) == 0)
+		return status;
+
+	buffer = (char*)malloc((strlen(line) + 1) * sizeof(char));
+
+	if (buffer == NULL) {
+		fail(stderr, "%s malloc failed\n", __func__);
+		return status;
+	}
+
+	strcpy(buffer, line);
+
+	token = strtok(buffer, "\t");
+	token = strtok(NULL, "\t");
+
+	if (token == NULL) {
+		fail(stderr, "%s: parsing line failed\n", __func__);
+		free(buffer);
+		return status;
+	}
+
+	if (strcmp(token, "U") == 0)
+		status = UNDONE;
+	else if (strcmp(token, "D") == 0)
+		status = DONE;
+	else if (strcmp(token, "P") == 0)
+		status = POSTPONED;
+
+	free(buffer);
+
+	return status;
+}
+
+
+/* Simple helper function to mark note as done */
+static void mark_as_done(FILE *fp, char *line)
+{
+	if (get_note_status(line) == POSTPONED)
+		note_status_replace(line, 'P', 'D');
+	else
+		note_status_replace(line, 'U', 'D');
+
+	fprintf(fp, "%s\n", line);
+}
+
+
+/* Simple helper function to mark note as undone */
+static void mark_as_undone(FILE *fp, char *line)
+{
+	if (get_note_status(line) == POSTPONED)
+		note_status_replace(line, 'P', 'U');
+	else
+		note_status_replace(line, 'D', 'U');
+
+	fprintf(fp, "%s\n", line);
+}
+
+
+/* Simple helper function to mark note as postponed */
+static void mark_as_postponed(FILE *fp, char *line)
+{
+	/* Only UNDONE notes can be postponed */
+	if (get_note_status(line) == UNDONE) {
+		note_status_replace(line, 'U', 'P');
+		fprintf(fp, "%s\n", line);
+	} else {
+		fprintf(fp, "%s\n", line);
+	}
+}
+
+
+/* Mark note by status U is undone, D is done or P postponed. When
+ * status is DELETE, the note with a matching id will be deleted.
+ *
+ * Function will create a temporary file to write the memo file with new
+ * changes. Then the original file is replaced with the temp file.
+
+ * id is ignored when status is DELETE_DONE or ALL_DONE.
+ */
+static int mark_note_status(NoteStatus_t status, int id)
+{
+	FILE *fp = NULL;
+	FILE *tmpfp = NULL;
+	char *line = NULL;
+	char *tmp;
+	int lines = 0;
+
+	fp = get_memo_file_ptr("r");
+	lines = count_file_lines(fp);
+
+	if (lines == -1) {
+		fail(stderr,"%s: counting lines failed\n", __func__);
+		return -1;
+	}
+
+	/* Ignore empty note file and exit */
+	if (lines == -2) {
+		fclose(fp);
+		printf("Nothing to do. No notes found\n");
+		return -1;
+	}
+
+	tmp = get_temp_memo_path();
+
+	if (tmp == NULL) {
+		fail(stderr,"%s: error getting a temp file\n",
+			__func__);
+		return -1;
+	}
+
+	char *memofile = get_memo_file_path();
+
+	if (memofile == NULL) {
+		fail(stderr,"%s: failed to get ~/.memo file path\n",
+			__func__);
+		return -1;
+	}
+
+	tmpfp = fopen(tmp, "w");
+
+	if (tmpfp == NULL) {
+		fail(stderr,"%s: error opening %s\n", __func__, tmp);
+		free(memofile);
+		return -1;
+	}
+
+
+	while (lines >= 0) {
+		line = read_file_line(fp);
+
+		if (line) {
+			char *endptr;
+			int curr = strtol(line, &endptr, 10);
+
+			switch(status) {
+
+			case DONE:
+				if (curr == id)
+					mark_as_done(tmpfp, line);
+				else
+					fprintf(tmpfp, "%s\n", line);
+				break;
+			case UNDONE:
+				if (curr == id)
+					mark_as_undone(tmpfp, line);
+				else
+					fprintf(tmpfp, "%s\n", line);
+				break;
+			case DELETE:
+				/* Write all the other lines, except the one
+				 * with the matching id. This is a simple way
+				 * to delete the line from the file.
+				 */
+				if (curr != id)
+					fprintf(tmpfp, "%s\n", line);
+				break;
+			case DELETE_DONE:
+				if (get_note_status(line) != DONE)
+					fprintf(tmpfp, "%s\n", line);
+				break;
+			case STATUS_ERROR:
+				fail(stderr,"STATUS_ERROR, this shouldn't happen\n");
+				break;
+			case ALL_DONE:
+				note_status_replace(line, 'U', 'D');
+				fprintf(tmpfp, "%s\n", line);
+				break;
+			case POSTPONED:
+				if (curr == id)
+					mark_as_postponed(tmpfp, line);
+				else
+					fprintf(tmpfp, "%s\n", line);
+				break;
+			}
+
+			free(line);
+		}
+
+		lines--;
+	}
+
+	fclose(fp);
+	fclose(tmpfp);
+
+	if (file_exists(memofile))
+		remove(memofile);
+
+	rename(tmp, memofile);
+	remove(tmp);
+
+	free(memofile);
+	free(tmp);
+
+	return 0;
+}
+
+
 /* This functions handles the output of one line.
  * Postponed notes are ignored.
  */
 static void output_default(char *line)
 {
-	printf("%s\n", line);
+	if (get_note_status(line) != POSTPONED)
+		printf("%s\n", line);
 }
 
 
-/* Export current .stamp file to a html file
+/* Output notes which are postponed.
+ * Called from show_notes when command line option -P
+ * is used.
+ */
+static void output_postponed(char *line)
+{
+	if (get_note_status(line) == POSTPONED)
+		printf("%s\n", line);
+}
+
+
+/* Output notes with status UNDONE.
+ * Called when argument -u is passed for the program.
+ */
+static void output_undone(char *line)
+{
+	if (get_note_status(line) == UNDONE)
+		printf("%s\n", line);
+}
+
+
+/* Export current .memo file to a html file
  * Return the path of the html file, or NULL on failure.
  */
-static const char *export_html(char *category, const char *path)
+static const char *export_html(const char *path)
 {
 	FILE *fp = NULL;
 	FILE *fpm = NULL;
@@ -844,7 +1109,7 @@ static const char *export_html(char *category, const char *path)
 		return NULL;
 	}
 
-	fpm = get_memo_file_ptr(category, "r");
+	fpm = get_memo_file_ptr("r");
 	lines = count_file_lines(fpm);
 
 	if (lines == -1) {
@@ -860,10 +1125,10 @@ static const char *export_html(char *category, const char *path)
 	fprintf(fp,"<!DOCTYPE html>\n");
 	fprintf(fp, "<html>\n<head>\n");
 	fprintf(fp, "<meta charset=\"UTF-8\">\n");
-	fprintf(fp, "<title>Stamp notes</title>\n");
+	fprintf(fp, "<title>Memo notes</title>\n");
 	fprintf(fp, "<style>pre{font-family: sans-serif;}</style>\n");
 	fprintf(fp, "</head>\n<body>\n");
-	fprintf(fp, "<h1>Notes from Stamp</h1>\n");
+	fprintf(fp, "<h1>Notes from Memo</h1>\n");
 	fprintf(fp, "<table>\n");
 
 	while (lines >= 0) {
@@ -887,7 +1152,7 @@ static const char *export_html(char *category, const char *path)
 
 
 /* Show latest n notes */
-static void show_latest(char *category, int n)
+static void show_latest(int n)
 {
 	FILE *fp = NULL;
 	char *line;
@@ -895,7 +1160,7 @@ static void show_latest(char *category, int n)
 	int start;
 	int current = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 
 	lines = count_file_lines(fp);
 
@@ -928,15 +1193,15 @@ static void show_latest(char *category, int n)
 
 
 /* Deletes all notes. Function actually
- * simply removes category file in .stamp directory
+ * simply removes .memo file.
  * Returns 0 on success, -1 on failure.
  */
-static int delete_all(char *category)
+static int delete_all()
 {
 	char *confirm = NULL;
 	int ask = 1;
 
-	confirm = get_memo_conf_value("STAMP_CONFIRM_DELETE");
+	confirm = get_memo_conf_value("MEMO_CONFIRM_DELETE");
 
 	if (confirm) {
 
@@ -946,10 +1211,10 @@ static int delete_all(char *category)
 		free(confirm);
 	}
 
-	char *path = get_memo_file_path(category);
+	char *path = get_memo_file_path();
 
 	if (path == NULL) {
-		fail(stderr,"%s error getting stamp file path\n", __func__);
+		fail(stderr,"%s error getting .memo file path\n", __func__);
 		return -1;
 	}
 
@@ -977,14 +1242,13 @@ static int delete_all(char *category)
 /* Delete a note by id.
  * Returns 0 on success and -1 on failure.
  */
-static int delete_note(char *category, int id)
+static int delete_note(int id)
 {
-	fail(stderr, "%s: deleting notes not implemented right now\n", __func__);
-	return 0;
+	return mark_note_status(DELETE, id);
 }
 
 
-/* Return the path to $HOME/.stamprc.  On failure NULL is returned.
+/* Return the path to $HOME/.memorc.  On failure NULL is returned.
  * Caller is responsible for freeing the return value.
  */
 static char *get_memo_conf_path()
@@ -1007,8 +1271,8 @@ static char *get_memo_conf_path()
 	/* +1 for \0 byte */
 	len = strlen(env) + 1;
 
-	/* +8 to have space for \"/.stamprc\" */
-	conf_path = (char*)malloc( (len + 9) * sizeof(char));
+	/* +8 to have space for \"/.memorc\" */
+	conf_path = (char*)malloc( (len + 8) * sizeof(char));
 
 	if (conf_path == NULL) {
 		fail(stderr, "%s: malloc failed\n", __func__);
@@ -1016,17 +1280,17 @@ static char *get_memo_conf_path()
 	}
 
 	strcpy(conf_path, env);
-	strcat(conf_path, "/.stamprc");
+	strcat(conf_path, "/.memorc");
 
 	return conf_path;
 }
 
 
-/* ~/.stamprc file format is following:
+/* ~/.memorc file format is following:
  *
  * PROPERTY=value
  *
- * e.g STAMP_PATH=/home/reinier/.stamprc
+ * e.g MEMO_PATH=/home/niko/.memo
  *
  * This function returns the value of the property. NULL is returned on
  * failure. On success, caller must free the return value.
@@ -1110,7 +1374,7 @@ static char *get_memo_conf_value(const char *prop)
 }
 
 
-/* Returns the default path. Default path is ~/.stamp
+/* Returns the default path. Default path is ~/.memo
  * 
  * Caller must free the return value. On failure NULL is returned.
  */
@@ -1132,8 +1396,8 @@ static char *get_memo_default_path()
 	/* +1 for \0 byte */
 	len = strlen(env) + 1;
 
-	/* +6 to have space for \"/.stamp\" */
-	path = (char*)malloc( (len + 7) * sizeof(char));
+	/* +6 to have space for \"/.memo\" */
+	path = (char*)malloc( (len + 6) * sizeof(char));
 
 	if (path == NULL) {
 		fail(stderr,"%s: malloc failed\n", __func__);
@@ -1141,27 +1405,27 @@ static char *get_memo_default_path()
 	}
 
 	strcpy(path, env);
-	strcat(path, "/.stamp");
+	strcat(path, "/.memo");
 
 	return path;
 }
 
 
-/* Function reads STAMP_PATH environment variable to see if it's set and
- * uses value from it as a path.  When STAMP_PATH is not set, function
- * reads $HOME/.stamprc file. If the file is not found $HOME/.stamprc is
+/* Function reads MEMO_PATH environment variable to see if it's set and
+ * uses value from it as a path.  When MEMO_PATH is not set, function
+ * reads $HOME/.memorc file. If the file is not found $HOME/.memo is
  * used as a fallback path.
  *
- * Returns the path to category file in .stamp directory or NULL on failure.
- * Caller is responsible for freeing the return value.
+ * Returns the path to .memo file or NULL on failure.  Caller is
+ * responsible for freeing the return value.
  */
-static char *get_memo_file_path(char *category)
+static char *get_memo_file_path()
 {
 	char *path = NULL;
 	char *env_path = NULL;
 
-	env_path = getenv("STAMP_PATH");
-	/* Try and see if environment variable STAMP_PATH is set
+	env_path = getenv("MEMO_PATH");
+	/* Try and see if environment variable MEMO_PATH is set
 	 * and use value from it as a path */
 	if (env_path != NULL) {
 		/* +1 for \0 byte */
@@ -1185,36 +1449,25 @@ static char *get_memo_file_path(char *category)
 
 
 	if (!file_exists(conf_path)) {
-		/* Config file not found, so fallback to ~/.stamp */
+		/* Config file not found, so fallback to ~/.memo */
 		path = get_memo_default_path();
 
 	} else {
 		/* Configuration file found, read .memo location
 		   from it */
-		path = get_memo_conf_value("STAMP_PATH");
-
+		path = get_memo_conf_value("MEMO_PATH");
+		
 		if (path == NULL) {
 			/* Failed to get the path. Most likely user did not
-			 * specify STAMP_PATH in the configuration file at all
+			 * specify MEMO_PATH in the configuration file at all
 			 * and configuration file is used for setting other
-			 * properties like STAMP_CONFIRM_DELETE.
+			 * properties like MEMO_CONFIRM_DELETE.
 			 *
-			 * Let's default to ~/.stamp
+			 * Let's default to ~/.memo
 			 */
 			path = get_memo_default_path();
 		}
 
-	}
-
-	/* prepare stamp path */
-	mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR);
-	chmod(path, 0700);
-
-	/* append category to stamp path */
-	if (strlen(category) > 0) {
-		path = (char *)realloc(path, (strlen(path) + strlen(category) + 2) * sizeof(char));
-		strcat(path, "/");
-		strcat(path, category);
 	}
 
 	free(conf_path);
@@ -1223,13 +1476,14 @@ static char *get_memo_file_path(char *category)
 }
 
 
-/* Returns temporary file.  It will be in the stamp directory.
+/* Returns temporary .memo.tmp file.  It will be in the same directory
+ * as the original .memo file.
  *
  * Returns NULL on failure.
  */
-static char *get_temp_memo_path(char *category)
+static char *get_temp_memo_path()
 {
-	char *orig = get_memo_file_path(category);
+	char *orig = get_memo_file_path();
 
 	if (orig == NULL)
 		return NULL;
@@ -1300,14 +1554,25 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 		goto error_clean_up;
 	}
 
+	/* Get the status code and copy it */ 
+	if ((token = strtok(NULL, "\t")) != NULL) {
+		if (sprintf(new_line + strlen(new_line), "%s\t", token) < 0)
+			goto error_clean_up;
+	}
+	else {
+		goto error_clean_up;
+	}
+
 	/* Get the original date */
-	if ((token = strtok(NULL, "\t")) == NULL)
+	if ( (token = strtok(NULL, "\t")) == NULL)
 		goto error_clean_up;
 
 	if (part == NOTE_DATE) {
 		/* Copy data as the new date */
 		if (sprintf(new_line + strlen(new_line), "%s\t", data) < 0)
 			goto error_clean_up;
+			
+
 	} else {
 		/* Copy the original date */
 		if (sprintf(new_line + strlen(new_line), "%s\t", token) < 0)
@@ -1315,7 +1580,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 	}
 
 	/* Get the original note content */
-	if ((token = strtok(NULL, "\t")) == NULL)
+	if ( (token = strtok(NULL, "\t")) == NULL)
 		goto error_clean_up;
 
 	if (part == NOTE_CONTENT) {
@@ -1335,7 +1600,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 error_clean_up:
 	fail(stderr, "%s: replacing note data failed\n", __func__);
 	free(new_line);
-
+			
 	return NULL;
 }
 
@@ -1345,12 +1610,12 @@ error_clean_up:
  * Data can be either a valid date or content.  Replace operation is
  * simply done by creating a temporary file, existing notes are written
  * line by line to it. Line that has matching id will be written with
- * new data. Then the original stamp file is replaced with the temporary
+ * new data. Then the original memo file is replaced with the temporary
  * one.
  *
  * Returns 0 on success, -1 on failure.
  */
-static int replace_note(char *category, int id, const char *data)
+static int replace_note(int id, const char *data)
 {
 	FILE *tmpfp = NULL;
 	FILE *fp = NULL;
@@ -1358,12 +1623,12 @@ static int replace_note(char *category, int id, const char *data)
 	char *tmpfile = NULL;
 	int lines = 0;
 
-	tmpfp = get_memo_tmpfile_ptr(category);
+	tmpfp = get_memo_tmpfile_ptr();
 
 	if (tmpfp == NULL)
 		return -1;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr("r");
 
 	lines = count_file_lines(fp);
 
@@ -1382,20 +1647,20 @@ static int replace_note(char *category, int id, const char *data)
 		return -1;
 	}
 
-	memofile = get_memo_file_path(category);
+	memofile = get_memo_file_path();
 
 	if (memofile == NULL) {
-		fail(stderr, "%s failed to get stamp file path\n", __func__);
+		fail(stderr, "%s failed to get memo file path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
 		return -1;
 	}
 
-	tmpfile = get_temp_memo_path(category);
-
+	tmpfile = get_temp_memo_path();
+	
 	if (tmpfile == NULL) {
-		fail(stderr, "%s failed to get stamp tmp path\n", __func__);
+		fail(stderr, "%s failed to get memo tmp path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -1411,7 +1676,7 @@ static int replace_note(char *category, int id, const char *data)
 			char *endptr;
 			int curr_id = strtol(line, &endptr, 10);
 			if (curr_id == id) {
-				/* Found the note to be replaced
+				/* Found the note to be replaced 
 				 * Check if user wants to replace the date
 				 * by validating the data as date. Otherwise
 				 * assume content is being replaced.
@@ -1434,7 +1699,7 @@ static int replace_note(char *category, int id, const char *data)
 
 					fprintf(tmpfp, "%s\n", new_line);
 					free(new_line);
-
+					
 				} else {
 					char *new_line = NULL;
 					new_line = note_part_replace(NOTE_CONTENT,
@@ -1480,19 +1745,22 @@ static int replace_note(char *category, int id, const char *data)
 }
 
 
-/* .stamp file format is following:
+/* .memo file format is following:
  *
- * id     date           content
- * |      |              |
- * |- id  |- yyy-MM-dd   |- actual note
+ * id     status     date           content
+ * |      |          |              |
+ * |- id  |-U/D/P    |- yyy-MM-dd   |- actual note
  *
  * sections are separated by a tab character
  *
  * Parameter date can be NULL. If date is given in valid
  * format(yyyy-MM-dd) it will be used for creating the note. If date is
  * NULL, current date will be used instead.
+ *
+ * Note will be marked with status "U" which means it's "undone".  "D"
+ * means "done". With status P, note is marked as postponed.
  */
-static int add_note(char *category, char *content, const char *date)
+static int add_note(char *content, const char *date)
 {
 	FILE *fp = NULL;
 	time_t t;
@@ -1506,20 +1774,20 @@ static int add_note(char *category, char *content, const char *date)
 
 	remove_content_newlines(content);
 
-	fp = get_memo_file_ptr(category, "a");
+	fp = get_memo_file_ptr("a");
 
 	if (fp == NULL) {
-		fail(stderr,"%s: Error opening stamp path\n", __func__);
+		fail(stderr,"%s: Error opening ~/.memo\n", __func__);
 		return -1;
 	}
 
-	id = get_next_id(category);
+	id = get_next_id();
 
 	if (id == -1)
 		id = 1;
 
 	if (date != NULL) {
-		/* Date is already validated, so just copy it
+                /* Date is already validated, so just copy it
 		 * for later use.
 		 */
 		strcpy(note_date, date);
@@ -1532,7 +1800,7 @@ static int add_note(char *category, char *content, const char *date)
 	}
 
 
-	fprintf(fp, "%d\t%s\t%s\n", id, note_date,
+	fprintf(fp, "%d\t%s\t%s\t%s\n", id, "U", note_date,
 		content);
 
 	fclose(fp);
@@ -1546,31 +1814,37 @@ static void usage()
 #define HELP "\
 SYNOPSIS\n\
 \n\
-    stamp [options]\n\
+    memo [options]\n\
 \n\
 OPTIONS\n\
 \n\
-    -a <category> <content> [yyyy-MM-dd]       Add a new note with optional date\n\
-    -d <category> <id>                         Delete note by id\n\
-    -D <category>                              Delete all notes\n\
-    -e <category> <path>                       Export notes as html to a file\n\
-    -f <category> <search>                     Find notes by search term\n\
-    -F <category> <regex>                      Find notes by regular expression\n\
-    -i <category>                              Read from stdin until ^D\n\
-    -l <category> <n>                          Show latest n notes\n\
-    -o <category>                              Show all notes organized by date\n\
-    -p                                         Show current stamp file path\n\
-    -r <category> <id> [content]/[yyyy-MM-dd]  Replace note content or date\n\
-    -s <category>                              Show all notes\n\
+    -a <content> [yyyy-MM-dd]        Add a new note with optional date\n\
+    -d <id>                          Delete note by id\n\
+    -D                               Delete all notes\n\
+    -e <path>                        Export notes as html to a file\n\
+    -f <search>                      Find notes by search term\n\
+    -F <regex>                       Find notes by regular expression\n\
+    -i                               Read from stdin until ^D\n\
+    -l <n>                           Show latest n notes\n\
+    -m <id>                          Mark note status as done\n\
+    -M <id>                          Mark note status as undone\n\
+    -o                               Show all notes organized by date\n\
+    -p                               Show current memo file path\n\
+    -P [id]                          Show postponed or mark note as postponed\n\
+    -R                               Delete all notes marked as done\n\
+    -r <id> [content]/[yyyy-MM-dd]   Replace note content or date\n\
+    -s                               Show all notes except postponed\n\
+                                     (Same as simply running memo)\n\
+    -T                               Mark all notes as done\n\
+    -u                               Show only undone notes\n\
 \n\
-    -                                          Read from stdin\n\
-    -h                                         Show short help and exit. This page\n\
-    -V                                         Show version number of program\n\
+    -                                Read from stdin\n\
+    -h                               Show short help and exit. This page\n\
+    -V                               Show version number of program\n\
 \n\
-For more information and examples see man stamp(1).\n\
+For more information and examples see man memo(1).\n\
 \n\
 AUTHORS\n\
-    Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>\n\
     Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>\n\
 \n\
     Released under license GPL-3+. For more information, see\n\
@@ -1585,7 +1859,7 @@ static void show_memo_file_path()
 {
 	char *path = NULL;
 
-	path = get_memo_file_path("");
+	path = get_memo_file_path();
 
 	if (path == NULL) {
 		fail(stderr,"%s: can't retrieve path\n", __func__);
@@ -1602,9 +1876,10 @@ int main(int argc, char *argv[])
 {
 	char *path = NULL;
 	int c;
+	char *stdinline = NULL;
 	int has_valid_options = 0;
 
-	path = get_memo_file_path("");
+	path = get_memo_file_path();
 
 	if (path == NULL)
 		return -1;
@@ -1614,7 +1889,7 @@ int main(int argc, char *argv[])
 			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		if (fd == -1) {
-			fail(stderr,"%s: failed to create empty stamp\n",
+			fail(stderr,"%s: failed to create empty memo\n",
 				__func__);
 			free(path);
 			return -1;
@@ -1626,41 +1901,38 @@ int main(int argc, char *argv[])
 	opterr = 0;
 
 	if (argc == 1) {
-		usage();
-		return -1;
+		/* No arguments given, so just show notes */
+		show_notes(-1);
 	}
 
-	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:o:pr:s:V")) != -1){
+	while ((c = getopt(argc, argv, "a:d:De:f:F:hil:m:M:opPr:RsTuV")) != -1){
 		has_valid_options = 1;
 
 		switch(c) {
-
+	
 		case 'a':
-			ARGCHECK("a", 4, "content");
-			/* if last arg is valid date, use it */
-			if (is_valid_date_format(argv[(argc - 1)], 1) == 0)
-				add_note(argv[2], argv[3], argv[(argc - 1)]);
-			else
-				add_note(argv[2], argv[3], NULL);
+			if (argv[optind]) {
+				if (is_valid_date_format(argv[optind], 0) == 0)
+					add_note(optarg, argv[optind]);
+			}
+			else {
+				add_note(optarg,NULL);
+			}
 			break;
 		case 'd':
-			ARGCHECK("d", 4, "ID");
-			delete_note(argv[2], atoi(argv[3]));
+			delete_note(atoi(optarg));
 			break;
 		case 'D':
-			delete_all(optarg);
+			delete_all();
 			break;
 		case 'e':
-			ARGCHECK("e", 4, "path");
-			export_html(argv[2], argv[3]);
+			export_html(optarg);
 			break;
 		case 'f':
-			ARGCHECK("f", 4, "search string");
-			search_notes(argv[2], argv[3]);
+			search_notes(optarg);
 			break;
 		case 'F':
-			ARGCHECK("F", 4, "regex");
-			search_regexp(argv[2], argv[3]);
+			search_regexp(optarg);
 			break;
 		case 'h':
 			usage();
@@ -1669,45 +1941,93 @@ int main(int argc, char *argv[])
 			add_notes_from_stdin();
 			break;
 		case 'o':
-			show_notes_tree(optarg);
+			show_notes_tree();
 			break;
 		case 'l':
-			ARGCHECK("l", 4, "number");
-			show_latest(argv[2], atoi(argv[3]));
+			show_latest(atoi(optarg));
 			break;
+		case 'm':
+			mark_note_status(DONE, atoi(optarg));
+			break;
+                case 'M':
+	                mark_note_status(UNDONE, atoi(optarg));
+	                break;
 		case 'p':
 			show_memo_file_path();
 			break;
-		case 'r':
-			ARGCHECK("r", 5, "id, content or date");
-			replace_note(argv[2], atoi(argv[3]), argv[4]);
+		case 'P':
+			if (argv[optind])
+				mark_note_status(POSTPONED, atoi(argv[optind]));
+			else
+				show_notes(POSTPONED);
 			break;
-		case 's':
-			show_notes(optarg);
-			break;
-		case 'V':
-			printf("Stamp version %.1f\n", VERSION);
-			break;
-		case '?': {
-			char copts[11] = "adDefFilors";
-			int coptfound = 0;
-			for (int i = 0; i < strlen(copts); i++) {
-				if (copts[i] == optopt) {
-					coptfound = 1;
-					printf("Error: -%c missing an argument category\n", optopt);
-					usage();
-				}
+		case 'r': {
+			int id = atoi(optarg);
+			if (argv[optind]) {
+				replace_note(id, argv[optind]);
 			}
-			free(copts);
-			if (coptfound == 0)
-				printf("invalid option '%c', see stamp -h for help\n", optopt);
+			else {
+				printf("Missing argument date or content, see -h\n");
+				free(path);
+				return 0;
+			}	
 			break;
 		}
+		case 'R':
+			mark_note_status(DELETE_DONE, -1);
+			break;
+		case 's':
+			show_notes(-1);
+			break;
+		case 'T':
+			mark_note_status(ALL_DONE, -1);
+			break;
+		case 'u':
+			show_notes(UNDONE);
+			break;
+		case 'V':
+			printf("Memo version %.1f\n", VERSION);
+			break;
+		case '?':
+			if (optopt == 'a')
+				printf("-a missing an argument <content>\n");
+			else if (optopt == 'd')
+				printf("-d missing an argument <id>\n");
+			else if (optopt == 'e')
+				printf("-e missing an argument <path>\n");
+			else if (optopt == 'f')
+				printf("-f missing an argument <search>\n");
+			else if (optopt == 'F')
+				printf("-F missing an argument <regex>\n");
+			else if (optopt == 'l')
+				printf("-l missing an argument <n>\n");
+			else if (optopt == 'm')
+				printf("-m missing an argument <id>\n");
+			else if(optopt == 'M')
+				printf("-M missing an argument <id>\n");
+			else if(optopt == 'r')
+				printf("-r missing an argument <id>\n");
+			else
+				printf("invalid option, see memo -h for help\n");
+			break;
+		}
+	}
+
+	/* Handle argument '-' to read line from stdin */
+	if (argc > 1 && *argv[argc - 1] == '-' && strlen(argv[argc - 1]) == 1) {
+
+		has_valid_options = 1;
+
+		stdinline = read_file_line(stdin);
+
+		if (stdinline) {
+			add_note(stdinline, NULL);
+			free(stdinline);
 		}
 	}
 
 	if (argc > 1 && !has_valid_options)
-		printf("invalid input, see stamp -h for help\n");
+		printf("invalid input, see memo -h for help\n");
 
 	free(path);
 
