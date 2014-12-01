@@ -52,6 +52,7 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <dirent.h>
 #ifdef _WIN32
 # include <pcreposix.h>
 #else
@@ -92,6 +93,7 @@ static int   get_next_id(char *category);
 static int   delete_note(char *category, int id);
 static int   show_notes(char *category);
 static int   show_notes_tree(char *category);
+static int   show_categories();
 static int   count_file_lines(FILE *fp);
 static char  *note_part_replace(NotePart_t part, char *note_line, const char *data);
 static int   search_notes(char *category, const char *search);
@@ -601,7 +603,7 @@ static int show_notes_tree(char *category)
 
 	fp = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fp);
-	
+
 	if (lines == -1) {
 		fail(stderr, "%s: counting lines failed\n", __func__);
 		return -1;
@@ -683,7 +685,7 @@ static int show_notes_tree(char *category)
 						fclose(fp);
 						return -1;
 					}
-				
+
 					if (strcmp(date, dates[i]) == 0)
 						output_without_date(line);
 
@@ -701,6 +703,36 @@ static int show_notes_tree(char *category)
 	return count;
 }
 
+/* Show all categories of notes
+ *
+ * Basically just lists files of stamp directory.
+ * Returns the count of categories or -1 if function fails.
+ */
+static int show_categories()
+{
+	char *path = get_memo_file_path("");
+	if (path == NULL) {
+        fail(stderr,"%s: error getting stamp path\n",
+            __func__);
+        return -1;
+    }
+
+	DIR *dir;
+	if ((dir = opendir(path)) == NULL) {
+		fail(stderr, "%s: could not open stamp path\n", __func__);
+		return -1;
+	}
+
+	free(path);
+	struct dirent *ent;
+	while ((ent = readdir(dir)) != NULL)
+		if (ent->d_type == 8) // DT_REG
+			printf("%s\n", ent->d_name);
+
+	closedir(dir);
+
+	return 1;
+}
 
 /* Search if a note contains the search term.
  * Returns the count of found notes or -1 if function fails.
@@ -1558,12 +1590,12 @@ OPTIONS\n\
     -F <category> <regex>                      Find notes by regular expression\n\
     -i <category>                              Read from stdin until ^D\n\
     -l <category> <n>                          Show latest n notes\n\
+    -L                                         List all categories\n\
     -o <category>                              Show all notes organized by date\n\
     -p                                         Show current stamp file path\n\
     -r <category> <id> [content]/[yyyy-MM-dd]  Replace note content or date\n\
     -s <category>                              Show all notes\n\
 \n\
-    -                                          Read from stdin\n\
     -h                                         Show short help and exit. This page\n\
     -V                                         Show version number of program\n\
 \n\
@@ -1630,7 +1662,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:o:pr:s:V")) != -1){
+	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:Lo:pr:s:V")) != -1){
 		has_valid_options = 1;
 
 		switch(c) {
@@ -1674,6 +1706,9 @@ int main(int argc, char *argv[])
 		case 'l':
 			ARGCHECK("l", 4, "number");
 			show_latest(argv[2], atoi(argv[3]));
+			break;
+		case 'L':
+			show_categories();
 			break;
 		case 'p':
 			show_memo_file_path();
