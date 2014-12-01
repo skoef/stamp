@@ -584,10 +584,10 @@ error:
  * For example:
  *
  *   2014-11-01
- *         1   U   Release Memo 1.3
- *         2   D   Pay rent
+ *         1   Release Memo 1.3
+ *         2   Pay rent
  *   2014-11-02
- *         3   D   Go shopping
+ *         3   Go shopping
  *
  * Returns the count of the notes. On failure returns -1.
  */
@@ -1289,25 +1289,14 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 		goto error_clean_up;
 	}
 
-	/* Get the status code and copy it */ 
-	if ((token = strtok(NULL, "\t")) != NULL) {
-		if (sprintf(new_line + strlen(new_line), "%s\t", token) < 0)
-			goto error_clean_up;
-	}
-	else {
-		goto error_clean_up;
-	}
-
 	/* Get the original date */
-	if ( (token = strtok(NULL, "\t")) == NULL)
+	if ((token = strtok(NULL, "\t")) == NULL)
 		goto error_clean_up;
 
 	if (part == NOTE_DATE) {
 		/* Copy data as the new date */
 		if (sprintf(new_line + strlen(new_line), "%s\t", data) < 0)
 			goto error_clean_up;
-			
-
 	} else {
 		/* Copy the original date */
 		if (sprintf(new_line + strlen(new_line), "%s\t", token) < 0)
@@ -1315,7 +1304,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 	}
 
 	/* Get the original note content */
-	if ( (token = strtok(NULL, "\t")) == NULL)
+	if ((token = strtok(NULL, "\t")) == NULL)
 		goto error_clean_up;
 
 	if (part == NOTE_CONTENT) {
@@ -1335,7 +1324,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 error_clean_up:
 	fail(stderr, "%s: replacing note data failed\n", __func__);
 	free(new_line);
-			
+
 	return NULL;
 }
 
@@ -1482,18 +1471,15 @@ static int replace_note(char *category, int id, const char *data)
 
 /* .memo file format is following:
  *
- * id     status     date           content
- * |      |          |              |
- * |- id  |-U/D/P    |- yyy-MM-dd   |- actual note
+ * id     date           content
+ * |      |              |
+ * |- id  |- yyy-MM-dd   |- actual note
  *
  * sections are separated by a tab character
  *
  * Parameter date can be NULL. If date is given in valid
  * format(yyyy-MM-dd) it will be used for creating the note. If date is
  * NULL, current date will be used instead.
- *
- * Note will be marked with status "U" which means it's "undone".  "D"
- * means "done". With status P, note is marked as postponed.
  */
 static int add_note(char *category, char *content, const char *date)
 {
@@ -1512,7 +1498,7 @@ static int add_note(char *category, char *content, const char *date)
 	fp = get_memo_file_ptr(category, "a");
 
 	if (fp == NULL) {
-		fail(stderr,"%s: Error opening ~/.memo\n", __func__);
+		fail(stderr,"%s: Error opening memo path\n", __func__);
 		return -1;
 	}
 
@@ -1522,7 +1508,7 @@ static int add_note(char *category, char *content, const char *date)
 		id = 1;
 
 	if (date != NULL) {
-                /* Date is already validated, so just copy it
+		/* Date is already validated, so just copy it
 		 * for later use.
 		 */
 		strcpy(note_date, date);
@@ -1535,7 +1521,7 @@ static int add_note(char *category, char *content, const char *date)
 	}
 
 
-	fprintf(fp, "%d\t%s\t%s\t%s\n", id, "U", note_date,
+	fprintf(fp, "%d\t%s\t%s\n", id, note_date,
 		content);
 
 	fclose(fp);
