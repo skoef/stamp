@@ -68,20 +68,6 @@
 }
 
 typedef enum {
-	DONE = 1,
-	UNDONE = 2,
-	DELETE = 3,
-	DELETE_DONE = 4,
-	STATUS_ERROR = 5,
-	ALL_DONE = 6,
-	POSTPONED = 7
-} NoteStatus_t;
-
-
-/* NOTE_STATUS part is handled by NoteStatus_t
- * in function mark_note_status.
- */
-typedef enum {
 	NOTE_DATE = 1,
 	NOTE_CONTENT = 2
 
@@ -103,7 +89,7 @@ static int   add_note(char *category, char *content, const char *date);
 static int   replace_note(char *category, int id, const char *data);
 static int   get_next_id(char *category);
 static int   delete_note(char *category, int id);
-static int   show_notes(char *category, NoteStatus_t status);
+static int   show_notes(char *category);
 static int   show_notes_tree(char *category);
 static int   count_file_lines(FILE *fp);
 static char  *note_part_replace(NotePart_t part, char *note_line, const char *data);
@@ -119,12 +105,6 @@ static void  usage();
 static void  fail(FILE *out, const char *fmt, ...);
 static int   delete_all(char *category);
 static void  show_memo_file_path();
-static NoteStatus_t get_note_status(const char *line);
-static int   mark_note_status(char *category, NoteStatus_t status, int id);
-static void  note_status_replace(char *line, char new, char old);
-static void  mark_as_done(FILE *fp, char *line);
-static void  mark_as_undone(FILE *fp, char *line);
-static void  mark_as_postponed(FILE *fp, char *line);
 
 
 #define VERSION 1.4
@@ -485,14 +465,11 @@ static int get_next_id(char *category)
 }
 
 
-/* Show all notes. with status POSTPONED, postponed
- * notes are shown. With status UNDONE, only undone
- * notes are shown. Otherwise status is ignored and
- * all notes are displayed.
+/* Show all notes.
  *
  * Returns the number of notes. Returns -1 on failure
  */
-static int show_notes(char *category, NoteStatus_t status)
+static int show_notes(char *category)
 {
 	FILE *fp = NULL;
 	char *line;
@@ -840,235 +817,12 @@ static int search_regexp(char *category, const char *regexp)
 }
 
 
-/* Replace note status old with new status in line.*/
-static void note_status_replace(char *line, char old, char new)
-{
-	while (*line) {
-		if (*line == old) {
-			*line = new;
-			break;
-		}
-		line++;
-	}
-}
-
-
-/* Get the note status from the note line.
- * Returns STATUS_ERROR on failure.
- */
-static NoteStatus_t get_note_status(const char *line)
-{
-	char *token = NULL;
-	char *buffer = NULL;
-	NoteStatus_t status;
-
-	status = STATUS_ERROR;
-
-	/* Sanity check for an empty line */
-	if(strlen(line) == 0)
-		return status;
-
-	buffer = (char*)malloc((strlen(line) + 1) * sizeof(char));
-
-	if (buffer == NULL) {
-		fail(stderr, "%s malloc failed\n", __func__);
-		return status;
-	}
-
-	strcpy(buffer, line);
-
-	token = strtok(buffer, "\t");
-	token = strtok(NULL, "\t");
-
-	if (token == NULL) {
-		fail(stderr, "%s: parsing line failed\n", __func__);
-		free(buffer);
-		return status;
-	}
-
-	if (strcmp(token, "U") == 0)
-		status = UNDONE;
-	else if (strcmp(token, "D") == 0)
-		status = DONE;
-	else if (strcmp(token, "P") == 0)
-		status = POSTPONED;
-
-	free(buffer);
-
-	return status;
-}
-
-
-/* Simple helper function to mark note as done */
-static void mark_as_done(FILE *fp, char *line)
-{
-	if (get_note_status(line) == POSTPONED)
-		note_status_replace(line, 'P', 'D');
-	else
-		note_status_replace(line, 'U', 'D');
-
-	fprintf(fp, "%s\n", line);
-}
-
-
-/* Simple helper function to mark note as undone */
-static void mark_as_undone(FILE *fp, char *line)
-{
-	if (get_note_status(line) == POSTPONED)
-		note_status_replace(line, 'P', 'U');
-	else
-		note_status_replace(line, 'D', 'U');
-
-	fprintf(fp, "%s\n", line);
-}
-
-
-/* Simple helper function to mark note as postponed */
-static void mark_as_postponed(FILE *fp, char *line)
-{
-	/* Only UNDONE notes can be postponed */
-	if (get_note_status(line) == UNDONE) {
-		note_status_replace(line, 'U', 'P');
-		fprintf(fp, "%s\n", line);
-	} else {
-		fprintf(fp, "%s\n", line);
-	}
-}
-
-
-/* Mark note by status U is undone, D is done or P postponed. When
- * status is DELETE, the note with a matching id will be deleted.
- *
- * Function will create a temporary file to write the memo file with new
- * changes. Then the original file is replaced with the temp file.
-
- * id is ignored when status is DELETE_DONE or ALL_DONE.
- */
-static int mark_note_status(char *category, NoteStatus_t status, int id)
-{
-	FILE *fp = NULL;
-	FILE *tmpfp = NULL;
-	char *line = NULL;
-	char *tmp;
-	int lines = 0;
-
-	fp = get_memo_file_ptr(category, "r");
-	lines = count_file_lines(fp);
-
-	if (lines == -1) {
-		fail(stderr,"%s: counting lines failed\n", __func__);
-		return -1;
-	}
-
-	/* Ignore empty note file and exit */
-	if (lines == -2) {
-		fclose(fp);
-		printf("Nothing to do. No notes found\n");
-		return -1;
-	}
-
-	tmp = get_temp_memo_path(category);
-
-	if (tmp == NULL) {
-		fail(stderr,"%s: error getting a temp file\n",
-			__func__);
-		return -1;
-	}
-
-	char *memofile = get_memo_file_path(category);
-
-	if (memofile == NULL) {
-		fail(stderr,"%s: failed to get ~/.memo file path\n",
-			__func__);
-		return -1;
-	}
-
-	tmpfp = fopen(tmp, "w");
-
-	if (tmpfp == NULL) {
-		fail(stderr,"%s: error opening %s\n", __func__, tmp);
-		free(memofile);
-		return -1;
-	}
-
-
-	while (lines >= 0) {
-		line = read_file_line(fp);
-
-		if (line) {
-			char *endptr;
-			int curr = strtol(line, &endptr, 10);
-
-			switch(status) {
-
-			case DONE:
-				if (curr == id)
-					mark_as_done(tmpfp, line);
-				else
-					fprintf(tmpfp, "%s\n", line);
-				break;
-			case UNDONE:
-				if (curr == id)
-					mark_as_undone(tmpfp, line);
-				else
-					fprintf(tmpfp, "%s\n", line);
-				break;
-			case DELETE:
-				/* Write all the other lines, except the one
-				 * with the matching id. This is a simple way
-				 * to delete the line from the file.
-				 */
-				if (curr != id)
-					fprintf(tmpfp, "%s\n", line);
-				break;
-			case DELETE_DONE:
-				if (get_note_status(line) != DONE)
-					fprintf(tmpfp, "%s\n", line);
-				break;
-			case STATUS_ERROR:
-				fail(stderr,"STATUS_ERROR, this shouldn't happen\n");
-				break;
-			case ALL_DONE:
-				note_status_replace(line, 'U', 'D');
-				fprintf(tmpfp, "%s\n", line);
-				break;
-			case POSTPONED:
-				if (curr == id)
-					mark_as_postponed(tmpfp, line);
-				else
-					fprintf(tmpfp, "%s\n", line);
-				break;
-			}
-
-			free(line);
-		}
-
-		lines--;
-	}
-
-	fclose(fp);
-	fclose(tmpfp);
-
-	if (file_exists(memofile))
-		remove(memofile);
-
-	rename(tmp, memofile);
-	remove(tmp);
-
-	free(memofile);
-	free(tmp);
-
-	return 0;
-}
-
-
 /* This functions handles the output of one line.
  * Postponed notes are ignored.
  */
 static void output_default(char *line)
 {
-	if (get_note_status(line) != POSTPONED)
-		printf("%s\n", line);
+	printf("%s\n", line);
 }
 
 
@@ -1224,7 +978,8 @@ static int delete_all(char *category)
  */
 static int delete_note(char *category, int id)
 {
-	return mark_note_status(category, DELETE, id);
+	fail(stderr, "%s: deleting notes not implemented right now\n", __func__);
+	return 0;
 }
 
 
@@ -1931,7 +1686,7 @@ int main(int argc, char *argv[])
 			replace_note(argv[2], atoi(argv[3]), argv[4]);
 			break;
 		case 's':
-			show_notes(optarg, -1);
+			show_notes(optarg);
 			break;
 		case 'V':
 			printf("Memo version %.1f\n", VERSION);
