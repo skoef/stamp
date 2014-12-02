@@ -1433,65 +1433,48 @@ static int replace_note(char *category, int id, const char *data)
 		return -1;
 	}
 
-	while (lines >= 0) {
+	while (lines-- >= 0) {
 		char *line = read_file_line(fp);
 
-		if (line) {
-			char *endptr;
-			int curr_id = strtol(line, &endptr, 10);
-			if (curr_id == id) {
-				/* Found the note to be replaced
-				 * Check if user wants to replace the date
-				 * by validating the data as date. Otherwise
-				 * assume content is being replaced.
-				 */
-				if (is_valid_date_format(data, 1) == 0) {
-					char *new_line = NULL;
-					new_line = note_part_replace(NOTE_DATE,
-								line, data);
-					if (new_line == NULL) {
-
-						printf("Unable to replace note %d\n", id);
-
-						free(memofile);
-						free(tmpfile);
-						fclose(fp);
-						fclose(tmpfp);
-
-						return -1;
-					}
-
-					fprintf(tmpfp, "%s\n", new_line);
-					free(new_line);
-
-				} else {
-					char *new_line = NULL;
-					new_line = note_part_replace(NOTE_CONTENT,
-								line, data);
-
-					if (new_line == NULL) {
-
-						printf("Unable to replace note %d\n", id);
-
-						free(memofile);
-						free(tmpfile);
-						fclose(fp);
-						fclose(tmpfp);
-
-						return -1;
-					}
-
-					fprintf(tmpfp, "%s\n", new_line);
-					free(new_line);
-				}
-			} else {
-				fprintf(tmpfp, "%s\n", line);
-			}
-
+		if (!line)
+			continue;
+		char *endptr;
+		int curr_id = strtol(line, &endptr, 10);
+		if (curr_id != id) {
+			fprintf(tmpfp, "%s\n", line);
 			free(line);
+			continue;
 		}
 
-		lines--;
+		/* Found the note to be replaced
+		 * Check if user wants to replace the date
+		 * by validating the data as date. Otherwise
+		 * assume content is being replaced.
+		 */
+		char *new_line = NULL;
+		if (is_valid_date_format(data, 1) == 0)
+			new_line = note_part_replace(NOTE_DATE,
+						line, data);
+		else
+			new_line = note_part_replace(NOTE_CONTENT,
+						line, data);
+
+		if (new_line == NULL) {
+			printf("Unable to replace note %d\n", id);
+
+			free(line);
+			free(memofile);
+			free(tmpfile);
+			fclose(fp);
+			fclose(tmpfp);
+
+			return -1;
+		}
+
+		fprintf(tmpfp, "%s\n", new_line);
+
+		free(new_line);
+		free(line);
 	}
 
 	if (file_exists(memofile))
