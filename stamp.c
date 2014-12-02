@@ -722,9 +722,18 @@ static int show_categories()
 
 	free(path);
 	struct dirent *ent;
-	while ((ent = readdir(dir)) != NULL)
-		if (ent->d_type == 8) // DT_REG
-			printf("%s\n", ent->d_name);
+	FILE *fp;
+	while ((ent = readdir(dir)) != NULL) {
+		if (ent->d_type == 8) { // DT_REG
+			fp = get_memo_file_ptr(ent->d_name, "r");
+			if (fp != NULL) {
+				int num = count_file_lines(fp);
+				printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
+				fclose(fp);
+			} else
+		 		printf("%s\n", ent->d_name);
+		}
+	}
 
 	closedir(dir);
 
@@ -1555,8 +1564,7 @@ static int add_note(char *category, char *content, const char *date)
 
 static void usage()
 {
-#define HELP "\
-SYNOPSIS\n\
+	printf("SYNOPSIS\n\
 \n\
     stamp [options]\n\
 \n\
@@ -1582,14 +1590,13 @@ OPTIONS\n\
 For more information and examples see man stamp(1).\n\
 \n\
 AUTHORS\n\
+\n\
     Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>\n\
     Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>\n\
 \n\
     Released under license GPL-3+. For more information, see\n\
     http://www.gnu.org/licenses\n\
-"
-
-	printf(HELP);
+");
 }
 
 
