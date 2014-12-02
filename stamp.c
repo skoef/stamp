@@ -78,7 +78,7 @@ typedef enum {
 
 /* Function declarations */
 static char *read_file_line(FILE *fp);
-static int  add_notes_from_stdin();
+static int  add_notes_from_stdin(char *category);
 static char *get_memo_file_path(char *category);
 static char *get_memo_default_path();
 static char *get_memo_conf_path();
@@ -313,7 +313,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode)
  * Notes are added to the stamp file. Returns -1 on failure, 0 on
  * success.
  */
-static int add_notes_from_stdin()
+static int add_notes_from_stdin(char *category)
 {
 	/* First get the whole buffer from stdin. Then parse the buffer;
 	 * each note is separated by a new line character in the
@@ -353,7 +353,7 @@ static int add_notes_from_stdin()
 	line = strtok(buffer, "\n");
 
 	while (line != NULL) {
-		add_note("stdin", line, NULL);
+		add_note(category, line, NULL);
 		line = strtok(NULL, "\n");
 	}
 
@@ -1698,7 +1698,7 @@ int main(int argc, char *argv[])
 			usage();
 			break;
 		case 'i':
-			add_notes_from_stdin();
+			add_notes_from_stdin(optarg);
 			break;
 		case 'o':
 			show_notes_tree(optarg);
