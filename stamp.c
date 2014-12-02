@@ -135,8 +135,8 @@ static int is_valid_date_format(const char *date, int silent_errors)
 	ret = sscanf(date, "%04d-%02d-%02d", &y, &m, &d);
 
 	if (ret != 3) {
-		if ( !silent_errors)
-			fail(stderr,"%s: invalid date format\n", __func__);
+		if (!silent_errors)
+			fail(stderr,"invalid date format: %s\n", date);
 
 		return -1;
 	}
@@ -210,7 +210,7 @@ static int count_file_lines(FILE *fp)
 		return -1;
 	}
 
-        /* Count lines by new line characters */
+	/* Count lines by new line characters */
 	while (!feof(fp)) {
 		ch = fgetc(fp);
 
@@ -219,17 +219,14 @@ static int count_file_lines(FILE *fp)
 	}
 
 
-        /* Go to beginning of the file */
+	/* Go to beginning of the file */
 	rewind(fp);
 
-        /* return the count, ignoring the last empty line */
+	/* return the count, ignoring the last empty line */
 	if (count == 0)
 		return -2;
 	else
-	return count - 1;
-
-
-	//return count;
+		return count - 1;
 }
 
 
@@ -1670,9 +1667,10 @@ int main(int argc, char *argv[])
 		case 'a':
 			ARGCHECK("a", 4, "content");
 			/* if last arg is valid date, use it */
-			if (is_valid_date_format(argv[(argc - 1)], 1) == 0)
-				add_note(argv[2], argv[3], argv[(argc - 1)]);
-			else
+			if (argc > 4) {
+				if (is_valid_date_format(argv[4], 0) == 0)
+					add_note(argv[2], argv[3], argv[4]);
+			} else
 				add_note(argv[2], argv[3], NULL);
 			break;
 		case 'd':
