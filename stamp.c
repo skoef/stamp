@@ -903,22 +903,28 @@ static const char *export_html(char *category, const char *path)
 	fprintf(fp,"<!DOCTYPE html>\n");
 	fprintf(fp, "<html>\n<head>\n");
 	fprintf(fp, "<meta charset=\"UTF-8\">\n");
-	fprintf(fp, "<title>Stamp notes</title>\n");
-	fprintf(fp, "<style>pre{font-family: sans-serif;}</style>\n");
+	fprintf(fp, "<title>Stamp notes: %s</title>\n", category);
+	fprintf(fp, "<style>td{font-family: monospace; white-space: pre;}</style>\n");
 	fprintf(fp, "</head>\n<body>\n");
-	fprintf(fp, "<h1>Notes from Stamp</h1>\n");
+	fprintf(fp, "<h1>Notes from Stamp, %s</h1>\n", category);
 	fprintf(fp, "<table>\n");
 
-	while (lines >= 0) {
+	char *token;
+	for (int i = 0; i <= lines; i++) {
 		line = read_file_line(fpm);
 
-		if (line) {
-			fprintf(fp, "<tr><td><pre>%s</pre></td></tr>\n",
-				line);
-			free(line);
+		if (!line)
+			continue;
+
+		fprintf(fp, "<tr>");
+		token = strtok(line, "\t");
+		while (token) {
+			fprintf(fp, "<td>%s</td>", token);
+			token = strtok(NULL, "\t");
 		}
 
-		lines--;
+		fprintf(fp, "</tr>\n");
+		free(line);
 	}
 
 	fprintf(fp, "</table>\n</body>\n</html>\n");
