@@ -1028,12 +1028,91 @@ static int delete_all(char *category)
 
 
 /* Delete a note by id.
+ * This functions loops over all lines from original file,
+ * adds them to a temporary file, except the line you want delete,
+ * and moves the temporary file over the original file
+ *
  * Returns 0 on success and -1 on failure.
  */
 static int delete_note(char *category, int id)
 {
-	fail(stderr, "%s: deleting notes not implemented right now\n", __func__);
-	return 0;
+	FILE *tmpfp = NULL;
+	FILE *fp = NULL;
+	char *memofile = NULL;
+	char *tmpfile = NULL;
+
+	tmpfp = get_memo_tmpfile_ptr(category);
+	if (tmpfp == NULL)
+		return -1;
+
+	fp = get_memo_file_ptr(category, "r");
+	if (fp == NULL) {
+		fclose(tmpfp);
+		return -1;
+	}
+
+	int lines = count_file_lines(fp);
+	if (lines < 0) {
+		if (lines == -1)
+			fail(stderr, "%s: counting lines failed\n", __func__);
+		fclose(fp);
+		fclose(tmpfp);
+
+		return -1;
+	}
+
+	memofile = get_memo_file_path(category);
+	if (memofile == NULL) {
+		fail(stderr, "%s failed to get stamp file path\n", __func__);
+		fclose(fp);
+		fclose(tmpfp);
+
+		return -1;
+	}
+
+	tmpfile = get_temp_memo_path(category);
+	if (tmpfile == NULL) {
+		fail(stderr, "%s failed to get stamp tmp path\n", __func__);
+		fclose(fp);
+		fclose(tmpfp);
+
+		free(memofile);
+
+		return -1;
+	}
+
+	for (int i = 0; i <= lines; i++) {
+		char *line = read_file_line(fp);
+
+		if (!line)
+			continue;
+
+		/* when ID is found, skip this line  */
+		char *endptr;
+		int curr_id = strtol(line, &endptr, 10);
+		if (curr_id != id) {
+			/* write line to tmpfile */
+			fprintf(tmpfp, "%s\n", line);
+		}
+
+		free(line);
+	}
+
+	int ret = 0;
+
+	if (rename(tmpfile, memofile) != -1)
+		remove(tmpfile);
+	else {
+		fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
+		ret = -1;
+	}
+
+	free(memofile);
+	free(tmpfile);
+	fclose(fp);
+	fclose(tmpfp);
+
+	return ret;
 }
 
 
