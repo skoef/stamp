@@ -703,16 +703,16 @@ static int show_notes_tree(char *category)
 /* Show all categories of notes
  *
  * Basically just lists files of stamp directory.
- * Returns the count of categories or -1 if function fails.
+ * Returns 0 on success or -1 if function fails.
  */
 static int show_categories()
 {
 	char *path = get_memo_file_path("");
 	if (path == NULL) {
-        fail(stderr,"%s: error getting stamp path\n",
-            __func__);
-        return -1;
-    }
+		fail(stderr,"%s: error getting stamp path\n",
+			__func__);
+		return -1;
+	}
 
 	DIR *dir;
 	if ((dir = opendir(path)) == NULL) {
@@ -728,7 +728,12 @@ static int show_categories()
 			fp = get_memo_file_ptr(ent->d_name, "r");
 			if (fp != NULL) {
 				int num = count_file_lines(fp);
-				printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
+				if (num < 0)
+					fail(stderr, "could not get number of notes for category %s\n", ent->d_name);
+				else {
+					num++;
+					printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
+				}
 				fclose(fp);
 			} else
 		 		printf("%s\n", ent->d_name);
@@ -737,7 +742,7 @@ static int show_categories()
 
 	closedir(dir);
 
-	return 1;
+	return 0;
 }
 
 /* Search if a note contains the search term.
