@@ -724,20 +724,25 @@ static int show_categories()
 	struct dirent *ent;
 	FILE *fp;
 	while ((ent = readdir(dir)) != NULL) {
-		if (ent->d_type == 8) { // DT_REG
-			fp = get_memo_file_ptr(ent->d_name, "r");
-			if (fp != NULL) {
-				int num = count_file_lines(fp);
-				if (num < 0)
-					fail(stderr, "could not get number of notes for category %s\n", ent->d_name);
-				else {
-					num++;
-					printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
-				}
-				fclose(fp);
-			} else
-		 		printf("%s\n", ent->d_name);
+		/* only files */
+		if (ent->d_type != 8) // DT_REG
+			continue;
+
+		fp = get_memo_file_ptr(ent->d_name, "r");
+		if (fp == NULL) {
+			printf("%s\n", ent->d_name);
+			continue;
 		}
+
+		int num = count_file_lines(fp);
+		if (num < 0)
+			fail(stderr, "could not get number of notes for category %s\n", ent->d_name);
+		else {
+			num++;
+			printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
+		}
+
+		fclose(fp);
 	}
 
 	closedir(dir);
@@ -770,22 +775,21 @@ static int search_notes(char *category, const char *search)
 		return -1;
 	}
 
-	while (lines >= 0) {
+	for (int i = 0; i <= lines; i++) {
 		line = read_file_line(fp);
 
-		if (line) {
-			/* Check if the search term matches */
-			const char *tmp = line;
+		if (!line)
+			continue;
 
-			if ((strstr(tmp, search)) != NULL){
-				output_default(line);
-				count++;
-			}
+		/* Check if the search term matches */
+		const char *tmp = line;
 
-			free(line);
+		if ((strstr(tmp, search)) != NULL){
+			output_default(line);
+			count++;
 		}
 
-		lines--;
+		free(line);
 	}
 
 	fclose(fp);
@@ -829,29 +833,28 @@ static int search_regexp(char *category, const char *regexp)
 		return -1;
 	}
 
-	while (lines >= 0) {
+	for (int i = 0; i <= lines; i++) {
 		line = read_file_line(fp);
 
-		if (line) {
-			ret = regexec(&regex, line, 0, NULL, 0);
+		if (!line)
+			continue;
 
-			if (ret == 0) {
-				output_default(line);
-				count++;
-			} else if (ret != 0 && ret != REG_NOMATCH) {
-				/* Something went wrong while executing
-				   regexp. Clean up and exit loop. */
-				regerror(ret, &regex, buffer, sizeof(buffer));
-				fail(stderr, "%s: %s\n", __func__, buffer);
-				free(line);
+		ret = regexec(&regex, line, 0, NULL, 0);
 
-				break;
-			}
-
+		if (ret == 0) {
+			output_default(line);
+			count++;
+		} else if (ret != 0 && ret != REG_NOMATCH) {
+			/* Something went wrong while executing
+			   regexp. Clean up and exit loop. */
+			regerror(ret, &regex, buffer, sizeof(buffer));
+			fail(stderr, "%s: %s\n", __func__, buffer);
 			free(line);
+
+			break;
 		}
 
-		lines--;
+		free(line);
 	}
 
 	regfree(&regex);
@@ -948,31 +951,32 @@ static void show_latest(char *category, int n)
 
 	lines = count_file_lines(fp);
 
-	if (lines != -1) {
-		/* If n is bigger than the count of lines or smaller
-		 * than zero we will show all the lines.
-		 */
-		if (n > lines || n < 0)
-			start = -1;
-		else
-			start = lines - n;
+	if (lines == -1) {
+		fail(stderr,"%s: counting lines failed\n", __func__);
+		return;
+	}
+	
+	/* If n is bigger than the count of lines or smaller
+	 * than zero we will show all the lines.
+	 */
+	if (n > lines || n < 0)
+		start = -1;
+	else
+		start = lines - n;
 
-		while (lines >= 0) {
-			line = read_file_line(fp);
+	for (int i = 0; i <= lines; i++) {
+		line = read_file_line(fp);
 
-			if (line) {
-				if (current > start)
-					printf("%s\n", line);
-				free(line);
-			}
-
-			lines--;
-			current++;
+		if (line) {
+			if (current > start)
+				printf("%s\n", line);
+			free(line);
 		}
 
-		fclose(fp);
-	} else
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		current++;
+	}
+
+	fclose(fp);
 }
 
 
@@ -1108,48 +1112,46 @@ static char *get_memo_conf_value(const char *prop)
 		return NULL;
 	}
 
-	while (lines >= 0) {
-
+	for (int i = 0; i <= lines; i++) {
 		char *line = read_file_line(fp);
 
-		if (line) {
-			if (strncmp(line, prop, strlen(prop)) == 0) {
+		if (!line)
+			continue;
 
-				/* Property found, get the value */
-				char *token = strtok(line, "=");
-				token = strtok(NULL, "=");
+		if (strncmp(line, prop, strlen(prop)) == 0) {
 
-				if (token == NULL) {
-					/* property does not have
-					 * a value. fail.
-					 */
-					fail(stderr, "%s: no value\n", prop);
-					free(line);
+			/* Property found, get the value */
+			char *token = strtok(line, "=");
+			token = strtok(NULL, "=");
 
-					break;
-				}
-
-			        size_t len = strlen(token) + 1;
-				retval = (char*)malloc(len * sizeof(char));
-
-				if (retval == NULL) {
-					fail(stderr,"%s malloc\n", __func__);
-					free(line);
-
-					break;
-				}
-
-				strcpy(retval, token);
+			if (token == NULL) {
+				/* property does not have
+				 * a value. fail.
+				 */
+				fail(stderr, "%s: no value\n", prop);
 				free(line);
 
 				break;
-
 			}
 
+			size_t len = strlen(token) + 1;
+			retval = (char*)malloc(len * sizeof(char));
+
+			if (retval == NULL) {
+				fail(stderr,"%s malloc\n", __func__);
+				free(line);
+
+				break;
+			}
+
+			strcpy(retval, token);
 			free(line);
+
+			break;
+
 		}
 
-		lines--;
+		free(line);
 	}
 
 	fclose(fp);
