@@ -1081,6 +1081,7 @@ static int delete_note(char *category, int id)
 		return -1;
 	}
 
+	int found = 0;
 	for (int i = 0; i <= lines; i++) {
 		char *line = read_file_line(fp);
 
@@ -1090,7 +1091,9 @@ static int delete_note(char *category, int id)
 		/* when ID is found, skip this line  */
 		char *endptr;
 		int curr_id = strtol(line, &endptr, 10);
-		if (curr_id != id) {
+		if (curr_id == id)
+			found = 1;
+		else {
 			/* write line to tmpfile */
 			fprintf(tmpfp, "%s\n", line);
 		}
@@ -1099,11 +1102,16 @@ static int delete_note(char *category, int id)
 	}
 
 	int ret = 0;
-
-	if (rename(tmpfile, memofile) != -1)
+	if (found == 1) {
+		if (rename(tmpfile, memofile) != -1)
+			remove(tmpfile);
+		else {
+			fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
+			ret = -1;
+		}
+	} else {
 		remove(tmpfile);
-	else {
-		fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
+		fail(stderr, "note with ID %d not found in category %s\n", id, category);
 		ret = -1;
 	}
 
@@ -1746,78 +1754,80 @@ int main(int argc, char *argv[])
 
 		switch(c) {
 
-		case 'a':
-			ARGCHECK("a", 4, "content");
-			/* if last arg is valid date, use it */
-			if (argc > 4) {
-				if (is_valid_date_format(argv[4], 0) == 0)
-					add_note(argv[2], argv[3], argv[4]);
-			} else
-				add_note(argv[2], argv[3], NULL);
-			break;
-		case 'd':
-			ARGCHECK("d", 4, "ID");
-			delete_note(argv[2], atoi(argv[3]));
-			break;
-		case 'D':
-			delete_all(optarg);
-			break;
-		case 'e':
-			ARGCHECK("e", 4, "path");
-			export_html(argv[2], argv[3]);
-			break;
-		case 'f':
-			ARGCHECK("f", 4, "search string");
-			search_notes(argv[2], argv[3]);
-			break;
-		case 'F':
-			ARGCHECK("F", 4, "regex");
-			search_regexp(argv[2], argv[3]);
-			break;
-		case 'h':
-			usage();
-			break;
-		case 'i':
-			add_notes_from_stdin(optarg);
-			break;
-		case 'o':
-			show_notes_tree(optarg);
-			break;
-		case 'l':
-			ARGCHECK("l", 4, "number");
-			show_latest(argv[2], atoi(argv[3]));
-			break;
-		case 'L':
-			show_categories();
-			break;
-		case 'p':
-			show_memo_file_path();
-			break;
-		case 'r':
-			ARGCHECK("r", 5, "id, content or date");
-			replace_note(argv[2], atoi(argv[3]), argv[4]);
-			break;
-		case 's':
-			show_notes(optarg);
-			break;
-		case 'V':
-			printf("Stamp version %.1f\n", VERSION);
-			break;
-		case '?': {
-			char *copts = "adDefFilors";
-			int coptfound = 0;
-			for (int i = 0; i < strlen(copts); i++) {
-				if (copts[i] == optopt) {
-					coptfound = 1;
-					printf("Error: -%c missing an argument category\n", optopt);
-					usage();
-					break;
+			case 'a':
+				ARGCHECK("a", 4, "content");
+				/* if last arg is valid date, use it */
+				if (argc > 4) {
+					if (is_valid_date_format(argv[4], 0) == 0)
+						add_note(argv[2], argv[3], argv[4]);
+				} else
+					add_note(argv[2], argv[3], NULL);
+				break;
+			case 'd':
+				ARGCHECK("d", 4, "ID");
+				delete_note(argv[2], atoi(argv[3]));
+				break;
+			case 'D':
+				delete_all(optarg);
+				break;
+			case 'e':
+				ARGCHECK("e", 4, "path");
+				export_html(argv[2], argv[3]);
+				break;
+			case 'f':
+				ARGCHECK("f", 4, "search string");
+				search_notes(argv[2], argv[3]);
+				break;
+			case 'F':
+				ARGCHECK("F", 4, "regex");
+				search_regexp(argv[2], argv[3]);
+				break;
+			case 'h':
+				usage();
+				break;
+			case 'i':
+				add_notes_from_stdin(optarg);
+				break;
+			case 'o':
+				show_notes_tree(optarg);
+				break;
+			case 'l':
+				ARGCHECK("l", 4, "number");
+				show_latest(argv[2], atoi(argv[3]));
+				break;
+			case 'L':
+				show_categories();
+				break;
+			case 'p':
+				show_memo_file_path();
+				break;
+			case 'r':
+				ARGCHECK("r", 5, "id, content or date");
+				replace_note(argv[2], atoi(argv[3]), argv[4]);
+				break;
+			case 's':
+				show_notes(optarg);
+				break;
+			case 'V':
+				printf("Stamp version %.1f\n", VERSION);
+				break;
+			case '?': {
+				char *copts = "adDefFilors";
+				int coptfound = 0;
+				for (int i = 0; i < strlen(copts); i++) {
+					if (copts[i] == optopt) {
+						coptfound = 1;
+						printf("Error: -%c missing an argument category\n", optopt);
+						usage();
+						break;
+					}
 				}
+
+				if (coptfound == 0)
+					printf("invalid option '%c', see stamp -h for help\n", optopt);
+
+				break;
 			}
-			if (coptfound == 0)
-				printf("invalid option '%c', see stamp -h for help\n", optopt);
-			break;
-		}
 		}
 	}
 
