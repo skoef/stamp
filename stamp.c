@@ -1725,16 +1725,16 @@ int main(int argc, char *argv[])
 			printf("Stamp version %.1f\n", VERSION);
 			break;
 		case '?': {
-			char copts[11] = "adDefFilors";
+			char *copts = "adDefFilors";
 			int coptfound = 0;
 			for (int i = 0; i < strlen(copts); i++) {
 				if (copts[i] == optopt) {
 					coptfound = 1;
 					printf("Error: -%c missing an argument category\n", optopt);
 					usage();
+					break;
 				}
 			}
-			free(copts);
 			if (coptfound == 0)
 				printf("invalid option '%c', see stamp -h for help\n", optopt);
 			break;
