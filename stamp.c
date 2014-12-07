@@ -442,7 +442,7 @@ static int get_next_id(char *category)
 		return id + 1;
 	}
 
-	while (1) {
+	for (;;) {
 		line = read_file_line(fp);
 
 		/* Check if we're at the last line */
@@ -451,7 +451,7 @@ static int get_next_id(char *category)
 			id = strtol(line, &endptr, 10);
 			free(line);
 			break;
-	        }
+		}
 
 		current++;
 
@@ -492,15 +492,14 @@ static int show_notes(char *category)
 		return -1;
 	}
 
-	while (lines >= 0) {
+	for (int i = 0; i <= lines; i++) {
 		line = read_file_line(fp);
 
-		if (line) {
-			output_default(line);
-			free(line);
-		}
+		if (!line)
+			continue;
 
-		lines--;
+		output_default(line);
+		free(line);
 	}
 
 	fclose(fp);
