@@ -75,6 +75,11 @@ typedef enum {
 
 } NotePart_t;
 
+struct Note {
+	int  id;
+	char date[10];
+	char *message;
+};
 
 /* Function declarations */
 static char *read_file_line(FILE *fp);
@@ -99,8 +104,9 @@ static char  *note_part_replace(NotePart_t part, char *note_line, const char *da
 static int   search_notes(char *category, const char *search);
 static int   search_regexp(char *category, const char *regexp);
 static const char *export_html(char *category, const char *path);
-static void  output_default(char *line);
-static void  output_without_date(char *line);
+static struct Note line_to_Note(char *line);
+static void  output_default(struct Note note);
+static void  output_without_date(struct Note note);
 static void  show_latest(char *category, int count);
 static FILE *get_memo_file_ptr();
 static FILE *get_memo_tmpfile_ptr();
@@ -464,6 +470,27 @@ static int get_next_id(char *category)
 	return id + 1;
 }
 
+static struct Note line_to_Note(char *line)
+{
+	struct Note note;
+	char *token = NULL;
+
+	token = strtok(line, "\t");
+	if (token)
+		note.id = atoi(token);
+
+	token = strtok(NULL, "\t");
+	if (token && strlen(token) == 10)
+		strcpy(note.date, token);
+
+	token = strtok(NULL, "\t");
+	if (token) {
+		note.message = (char *) malloc((strlen(token) + 1) * sizeof(char));
+		strcpy(note.message, token);
+	}
+
+	return note;
+}
 
 /* Show all notes.
  *
@@ -475,6 +502,7 @@ static int show_notes(char *category)
 	char *line;
 	int count = 0;
 	int lines = 0;
+	struct Note note;
 
 	fp = get_memo_file_ptr(category, "r");
 
@@ -498,7 +526,8 @@ static int show_notes(char *category)
 		if (!line)
 			continue;
 
-		output_default(line);
+		note = line_to_Note(line);
+		output_default(note);
 		free(line);
 	}
 
@@ -508,73 +537,12 @@ static int show_notes(char *category)
 }
 
 
-/* Function returns the date string of the note.
- *
- * On success caller must free the return value. 
- * NULL is returned on failure.
- */
-static char *get_note_date(char *line)
+static void output_without_date(struct Note note)
 {
-	char *date = NULL;
-	char *tmpline = strdup(line);
-	char *datetoken = NULL;
-
-	if (tmpline == NULL)
-		return NULL;
-
-	datetoken = strtok(tmpline, "\t");
-	datetoken = strtok(NULL, "\t");
-	datetoken = strtok(NULL, "\t");
-
-	if (datetoken == NULL) {
-		free(tmpline);
-		return NULL;
-	}
-
-	date = (char*)malloc((strlen(datetoken) + 1) * sizeof(char));
-	
-	if (date == NULL) {
-		free(tmpline);
-		return NULL;
-	}
-
-	strcpy(date, datetoken);
-
-	free(tmpline);
-
-	return date;
-}
-
-
-static void output_without_date(char *line)
-{
-	char *token = strtok(line, "\t");
-
-	if (token != NULL)
-		printf("\t%s\t", token);
-	else
-		goto error;
-
-	token = strtok(NULL, "\t");
-
-	if (token != NULL)
-		printf("%s\t", token);
-	else
-		goto error;
-
-	token = strtok(NULL, "\t");
-	token = strtok(NULL, "\t");
-
-	if (token != NULL)
-		printf("%s\n", token);
-	else
-		goto error;
-
-	return;
-
-error:
-	fail(stderr, "%s parsing line failed\n", __func__);
-
+	printf("\t%d\t%s\n",
+		note.id,
+		note.message
+	);
 }
 
 
@@ -592,10 +560,10 @@ error:
  */
 static int show_notes_tree(char *category)
 {
-	int count = 0;
 	int lines = 0;
 	FILE *fp = NULL;
 	int date_index = 0;
+	struct Note note;
 
 	fp = get_memo_file_ptr(category, "r");
 	lines = count_file_lines(fp);
@@ -611,50 +579,49 @@ static int show_notes_tree(char *category)
 		return -1;
 	}
 
-	int n = lines;
 	char *dates[lines + 1];
-
 	memset(dates, 0, sizeof(dates));
 
 	/* Get the date of each note and store the pointer
 	 * of it to dates array
 	 */
-	while (n >= 0) {
+	for (int n = 0; n <= lines; n++) {
 		char *line = read_file_line(fp);
-		if (line) {
-			char *date = get_note_date(line);
-			int has_date = 0;
+		if (!line)
+			continue;
 
-			if (date == NULL) {
-				free(line);
-				fclose(fp);
-				fail(stderr, "%s problem getting date\n",
-					__func__);
-				return -1;
-			}
-			/* Prevent storing duplicate dates*/
-			for (int i = 0; i < date_index; i++) {
-				if (dates[i]) {
-					if (strcmp(dates[i], date) == 0) {
-						has_date = 1;
-						break;
-					}
-				}
-			}
+		note = line_to_Note(line);
+		int has_date = 0;
 
-			/* If dates does not contain date, store it
-			 * otherwise free it
-			 */
-			if (!has_date)
-				dates[date_index] = date;
-			else
-				free(date);
-
-			date_index++;
-			count++;
+		if (note.date == NULL) {
 			free(line);
+			fclose(fp);
+			fail(stderr, "%s problem getting date\n",
+				__func__);
+			return -1;
 		}
-		n--;
+
+		/* Prevent storing duplicate dates */
+		for (int i = 0; i < date_index; i++) {
+			if (!dates[i])
+				continue;
+
+			if (strcmp(dates[i], note.date) == 0) {
+				has_date = 1;
+				break;
+			}
+		}
+
+		/* If dates does not contain date, store it
+		 * otherwise free it
+		 */
+		if (!has_date) {
+			dates[date_index] = (char *)malloc((strlen(note.date) + 1) * sizeof(char));
+			strcpy(dates[date_index], note.date);
+			date_index++;
+		}
+
+		free(line);
 	}
 
 	/* Loop through all dates and print all notes for
@@ -669,34 +636,33 @@ static int show_notes_tree(char *category)
 		 * so do a check if the value is null.
 		 */
 		if (dates[i]) {
-			n = lines;
 			rewind(fp);
 			printf("%s\n", dates[i]);
-			while (n >= 0) {
+			for (int j = 0; j <= lines; j++) {
 				char *line = read_file_line(fp);
-				if (line) {
-					char *date = get_note_date(line);
-					if (date == NULL) {
-						free(line);
-						fclose(fp);
-						return -1;
-					}
+				if (!line)
+					continue;
 
-					if (strcmp(date, dates[i]) == 0)
-						output_without_date(line);
-
+				note = line_to_Note(line);
+				if (note.date == NULL) {
 					free(line);
-					free(date);
+					fclose(fp);
+					return -1;
 				}
-				n--;
+
+				if (strcmp(note.date, dates[i]) == 0)
+					output_without_date(note);
+
+				free(line);
 			}
+
 			free(dates[i]);
 		}
 	}
 
 	fclose(fp);
 
-	return count;
+	return lines;
 }
 
 /* Show all categories of notes
@@ -758,6 +724,7 @@ static int search_notes(char *category, const char *search)
 	int count = 0;
 	char *line;
 	int lines = 0;
+	struct Note note;
 
 	fp = get_memo_file_ptr(category, "r");
 
@@ -784,7 +751,8 @@ static int search_notes(char *category, const char *search)
 		const char *tmp = line;
 
 		if ((strstr(tmp, search)) != NULL){
-			output_default(line);
+			note = line_to_Note(line);
+			output_default(note);
 			count++;
 		}
 
@@ -809,6 +777,7 @@ static int search_regexp(char *category, const char *regexp)
 	char lines = 0;
 	FILE *fp = NULL;
 	char buffer[100];
+	struct Note note;
 
 	ret = regcomp(&regex, regexp, REG_ICASE);
 
@@ -841,7 +810,8 @@ static int search_regexp(char *category, const char *regexp)
 		ret = regexec(&regex, line, 0, NULL, 0);
 
 		if (ret == 0) {
-			output_default(line);
+			note = line_to_Note(line);
+			output_default(note);
 			count++;
 		} else if (ret != 0 && ret != REG_NOMATCH) {
 			/* Something went wrong while executing
@@ -866,9 +836,13 @@ static int search_regexp(char *category, const char *regexp)
 /* This functions handles the output of one line.
  * Postponed notes are ignored.
  */
-static void output_default(char *line)
+static void output_default(struct Note note)
 {
-	printf("%s\n", line);
+	printf("%d\t%s\t%s\n",
+		note.id,
+		note.date,
+		note.message
+	);
 }
 
 
