@@ -1277,6 +1277,7 @@ static char *get_memo_file_path(char *category)
 {
 	char *path = NULL;
 	char *env_path = NULL;
+	char *conf_path = NULL;
 
 	env_path = getenv("STAMP_PATH");
 	/* Try and see if environment variable STAMP_PATH is set
@@ -1289,18 +1290,16 @@ static char *get_memo_file_path(char *category)
 			fail(stderr, "%s malloc failed\n", __func__);
 			return NULL;
 		}
+
 		strcpy(path, env_path);
 
-		return path;
+		goto prepdir;
 	}
 
-	char *conf_path = NULL;
 
 	conf_path = get_memo_conf_path();
-
 	if (conf_path == NULL)
 		return NULL;
-
 
 	if (!file_exists(conf_path)) {
 		/* Config file not found, so fallback to ~/.stamp */
@@ -1324,6 +1323,10 @@ static char *get_memo_file_path(char *category)
 
 	}
 
+	free(conf_path);
+
+prepdir:
+
 	/* prepare stamp path */
 	mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR);
 	chmod(path, 0700);
@@ -1334,8 +1337,6 @@ static char *get_memo_file_path(char *category)
 		strcat(path, "/");
 		strcat(path, category);
 	}
-
-	free(conf_path);
 
 	return path;
 }
