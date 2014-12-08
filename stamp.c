@@ -43,6 +43,9 @@
 # define S_IROTH 0
 #endif
 
+/* To prototype getline from stdio.h */
+#define	_WITH_GETLINE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,7 +72,7 @@
 	return 1;\
 }
 
-#define FREENOTE(x) free(x.message);
+#define FREENOTE(x) free(x.message)
 
 typedef enum {
 	NOTE_DATE = 1,
@@ -107,6 +110,7 @@ static int   search_notes(char *category, const char *search);
 static int   search_regexp(char *category, const char *regexp);
 static const char *export_html(char *category, const char *path);
 static struct Note line_to_Note(char *line);
+static void  notes_from_file(FILE *fp);
 static void  output_default(struct Note note);
 static void  output_without_date(struct Note note);
 static void  show_latest(char *category, int count);
@@ -434,7 +438,6 @@ static int get_next_id(char *category)
 	FILE *fp = NULL;
 	char *line = NULL;
 	int lines = 0;
-	int current = 0;
 
 	fp = get_memo_file_ptr(category, "r");
 
@@ -445,26 +448,25 @@ static int get_next_id(char *category)
 		return -1;
 	}
 
+	/* if file is empty, return 1 */
 	if (lines == -2) {
 		fclose(fp);
-		return id + 1;
+		return 1;
 	}
 
-	for (;;) {
+	/* loop over all lines */
+	for (int i = 0; i <= lines; i++) {
 		line = read_file_line(fp);
+		if (!line)
+			continue;
 
 		/* Check if we're at the last line */
-		if (line && current == lines) {
+		if (i == lines) {
 			char *endptr;
 			id = strtol(line, &endptr, 10);
-			free(line);
-			break;
 		}
 
-		current++;
-
-		if (line)
-			free(line);
+		free(line);
 	}
 
 	fclose(fp);
@@ -508,6 +510,9 @@ static int show_notes(char *category)
 
 	fp = get_memo_file_ptr(category, "r");
 
+	notes_from_file(fp);
+	rewind(fp);
+
 	lines = count_file_lines(fp);
 	count = lines;
 
@@ -539,6 +544,27 @@ static int show_notes(char *category)
 	return count;
 }
 
+static void notes_from_file(FILE *fp)
+{
+	struct Note result[0];
+
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	if (!fp) {
+		fail(stderr, "%s: no file pointer\n", __func__);
+		return;
+	}
+
+	while ((read = getline(&line, &len, fp)) != -1) {
+		printf("read line of lengt %zu :\n", read);
+		printf("%s", line);
+	}
+
+	if (line)
+		free(line);
+}
 
 static void output_without_date(struct Note note)
 {
