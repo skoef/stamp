@@ -69,6 +69,8 @@
 	return 1;\
 }
 
+#define FREENOTE(x) free(x.message);
+
 typedef enum {
 	NOTE_DATE = 1,
 	NOTE_CONTENT = 2
@@ -529,6 +531,7 @@ static int show_notes(char *category)
 		note = line_to_Note(line);
 		output_default(note);
 		free(line);
+		FREENOTE(note);
 	}
 
 	fclose(fp);
@@ -622,6 +625,7 @@ static int show_notes_tree(char *category)
 		}
 
 		free(line);
+		FREENOTE(note);
 	}
 
 	/* Loop through all dates and print all notes for
@@ -654,6 +658,7 @@ static int show_notes_tree(char *category)
 					output_without_date(note);
 
 				free(line);
+				FREENOTE(note);
 			}
 
 			free(dates[i]);
@@ -753,6 +758,7 @@ static int search_notes(char *category, const char *search)
 		if ((strstr(tmp, search)) != NULL){
 			note = line_to_Note(line);
 			output_default(note);
+			FREENOTE(note);
 			count++;
 		}
 
@@ -812,6 +818,7 @@ static int search_regexp(char *category, const char *regexp)
 		if (ret == 0) {
 			note = line_to_Note(line);
 			output_default(note);
+			FREENOTE(note);
 			count++;
 		} else if (ret != 0 && ret != REG_NOMATCH) {
 			/* Something went wrong while executing
