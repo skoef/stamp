@@ -2,6 +2,7 @@ CC=cc
 CFLAGS=-std=c99 -Wall -Werror
 PREFIX=/usr/local
 LDFLAGS=
+BATS=$$(which bats)
 
 ifeq ($(OS),Windows_NT)
 LDFLAGS=-lpcre
@@ -30,3 +31,11 @@ install: all
 uninstall:
 	rm $(PREFIX)/bin/stamp
 	rm $(PREFIX)/man/man1/stamp.1.gz
+
+test:
+ifeq ($(BATS),)
+	@echo "Error: BATS not found"
+	@echo "install it from https://github.com/sstephenson/bats"
+	@exit 1
+endif
+	@$$(which bats) tests.sh
