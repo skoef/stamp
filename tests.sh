@@ -1,22 +1,48 @@
 #!/usr/bin/env bats
 
 STAMP="./stamp"
+FIXTURE_PATH="tests/fixtures"
 
 setup() {
-    export STAMP_PATH=$(mktemp -d /tmp/stamp.XXX)
+    # create path for this test
+    export STAMP_PATH=$(mktemp -d /tmp/stamp.${BATS_TEST_NAME}.XXX)
+    mkdir -p ${STAMP_PATH}
+
+    # possible fixtures for this test
+    export FIXTURE_TXT=${FIXTURE_PATH}/${BATS_TEST_NAME}.txt
+    export FIXTURE_SUM=${FIXTURE_PATH}/${BATS_TEST_NAME}.sum
 }
 
-@test "create note category" {
-    run ${STAMP} -a foobar mekker
-    [ -f ${STAMP_PATH}/foobar ]
+@test "create note" {
+    run ${STAMP} -a foobar testing
+    shouldbe=$(date "+1%t%Y-%m-%d%ttesting")
+    run cat ${STAMP_PATH}/foobar
+    [ $shouldbe = $lines ]
 }
 
 @test "create note with custom date" {
-    run ${STAMP} -a foobar mekker 1970-01-01
-    sum=$(md5 -q ${STAMP_PATH}/foobar)
-    [ "${sum}" = "8fe3b94dec1806a22d1308824be398fb" ]
+    run ${STAMP} -a foobar testing 1970-01-01
+    run cmp ${STAMP_PATH}/foobar ${FIXTURE_TXT}
+    [ $status -eq 0 ]
+}
+
+@test "delete specific note" {
+    run ${STAMP} -a foobar testing1
+    run ${STAMP} -a foobar testing2
+    run ${STAMP} -a foobar testing3
+    run ${STAMP} -d foobar 2
+    run cmp ${STAMP_PATH}/foobar ${FIXTURE_TXT}
+    [ $status -eq 0 ]
+}
+
+@test "delete all notes from category" {
+    skip "no way to confirm from stdin yet"
+    run ${STAMP} -a foobar testing1
+    run ${STAMP} -D foobar
+    [ -f ${STAMP_PATH}/foobar ] && [ ! -s ${STAMP_PATH}/foobar ]
 }
 
 teardown() {
+    return
     rm -r ${STAMP_PATH}
 }
