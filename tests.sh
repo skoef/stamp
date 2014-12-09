@@ -43,6 +43,5 @@ setup() {
 }
 
 teardown() {
-    return
     rm -r ${STAMP_PATH}
 }
