@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stamp notes: foobar</title>
+<style>td{font-family: monospace; white-space: pre;}</style>
+</head>
+<body>
+<h1>Notes from Stamp, foobar</h1>
+<table>
+<tr><td>1</td><td>2014-12-10</td><td>testing</td></tr>
+</table>
+</body>
+</html>

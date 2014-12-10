@@ -706,7 +706,7 @@ static int show_categories()
 
 		int num = count_file_lines(fp);
 		if (num < 0)
-			fail(stderr, "could not get number of notes for category %s\n", ent->d_name);
+			printf("%s (empty)\n", ent->d_name);
 		else {
 			num++;
 			printf("%s (%d %s)\n", ent->d_name, num, (num != 1 ? "notes" : "note"));
@@ -1730,6 +1730,8 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	int ret = 0;
+	int results;
 	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:Lo:pr:s:V")) != -1){
 		has_valid_options = 1;
 
@@ -1741,6 +1743,8 @@ int main(int argc, char *argv[])
 				if (argc > 4) {
 					if (is_valid_date_format(argv[4], 0) == 0)
 						add_note(argv[2], argv[3], argv[4]);
+					else
+						ret = 1;
 				} else
 					add_note(argv[2], argv[3], NULL);
 				break;
@@ -1757,11 +1761,13 @@ int main(int argc, char *argv[])
 				break;
 			case 'f':
 				ARGCHECK("f", 4, "search string");
-				search_notes(argv[2], argv[3]);
+				if ((results = search_notes(argv[2], argv[3])) == 0)
+					ret = 2;
 				break;
 			case 'F':
 				ARGCHECK("F", 4, "regex");
-				search_regexp(argv[2], argv[3]);
+				if ((results = search_regexp(argv[2], argv[3])) == 0)
+					ret = 2;
 				break;
 			case 'h':
 				usage();
@@ -1800,12 +1806,15 @@ int main(int argc, char *argv[])
 						coptfound = 1;
 						printf("Error: -%c missing an argument category\n", optopt);
 						usage();
+						ret = 1;
 						break;
 					}
 				}
 
-				if (coptfound == 0)
+				if (coptfound == 0) {
 					printf("invalid option '%c', see stamp -h for help\n", optopt);
+					ret = 1;
+				}
 
 				break;
 			}
@@ -1817,5 +1826,5 @@ int main(int argc, char *argv[])
 
 	free(path);
 
-	return 0;
+	return ret;
 }

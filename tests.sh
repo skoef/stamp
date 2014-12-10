@@ -42,6 +42,99 @@ setup() {
     [ -f "${STAMP_PATH}/foobar" ] && [ ! -s "${STAMP_PATH}/foobar" ]
 }
 
+@test "export notes to HTML" {
+    run ${STAMP} -a foobar testing 2014-12-10
+    run ${STAMP} -e foobar "${STAMP_PATH}/foobar.html"
+    run cmp "${STAMP_PATH}/foobar.html" ${FIXTURE_TXT}
+    [ $status -eq 0 ]
+}
+
+@test "find searching for string" {
+    run ${STAMP} -a foobar testing
+    run ${STAMP} -a foobar foo
+    run ${STAMP} -a foobar bar
+    run ${STAMP} -f foobar testing && [ $status -eq 0 ]
+    run ${STAMP} -f foobar foo     && [ $status -eq 0 ]
+    run ${STAMP} -f foobar tin     && [ $status -eq 0 ]
+    run ${STAMP} -f foobar oba     && [ $status -eq 2 ]
+}
+
+@test "find searching for regex" {
+    skip "can't find a way to actually use the regexpes correclty"
+}
+
+@test "use stdin for add note" {
+    echo testing | ${STAMP} -i foobar
+    shouldbe=$(date "+1%t%Y-%m-%d%ttesting")
+    run cat "${STAMP_PATH}/foobar"
+    [ $shouldbe = $lines ]
+}
+
+@test "show last n notes" {
+    for i in {1..10}; do
+        run ${STAMP} -a foobar "testing${i}"
+    done
+    for i in {1..10}; do
+        k=$((11 - ${i}))
+        shouldbe=$(date "+${k}%t%Y-%m-%d%ttesting${k}")
+        run ${STAMP} -l foobar ${i}
+        [ "${lines[0]}"  = ${shouldbe} ]
+    done
+}
+
+@test "show categories" {
+    skip "output of readdir is not always in same order"
+    run ${STAMP} -a foobar testing1
+    run ${STAMP} -a foobar testing2
+    run ${STAMP} -a barfoo testing
+    run ${STAMP} -a testing testing
+    run ${STAMP} -d testing 1
+    run ${STAMP} -L
+    [ $status -eq 0 ]
+    [ "${lines[0]}" = "barfoo (1 note)" ]
+    [ "${lines[1]}" = "foobar (2 notes)" ]
+    [ "${lines[2]}" = "testing (empty)" ]
+}
+
+@test "parameter checks" {
+    # no arguments
+    run ${STAMP} && [ $status -eq 255 ]
+    # wrong option
+    run ${STAMP} -X && [ $status -eq 1 ]
+    # too few arguments -a
+    run ${STAMP} -a        && [ $status -eq 1 ]
+    run ${STAMP} -a foobar && [ $status -eq 1 ]
+    # wrong date argument for -a
+    run ${STAMP} -a foobar test test [ $status -eq 1 ]
+    # too few arguments -d
+    run ${STAMP} -d        && [ $status -eq 1 ]
+    run ${STAMP} -d foobar && [ $status -eq 1 ]
+    # too few arguments -D
+    # run ${STAMP} -D [ $status -eq 1 ]
+    # too few arguments -e
+    run ${STAMP} -e        && [ $status -eq 1 ]
+    run ${STAMP} -e foobar && [ $status -eq 1 ]
+    # too few arguments -f
+    run ${STAMP} -f        && [ $status -eq 1 ]
+    run ${STAMP} -f foobar && [ $status -eq 1 ]
+    # too few arguments -F
+    run ${STAMP} -F        && [ $status -eq 1 ]
+    run ${STAMP} -F foobar && [ $status -eq 1 ]
+    # too few arguments -i
+    run ${STAMP} -i && [ $status -eq 1 ]
+    # too few arguments -l
+    run ${STAMP} -l        && [ $status -eq 1 ]
+    run ${STAMP} -l foobar && [ $status -eq 1 ]
+    # too few arguments -o
+    run ${STAMP} -o && [ $status -eq 1 ]
+    # too few arguments -r
+    run ${STAMP} -r          && [ $status -eq 1 ]
+    run ${STAMP} -r foobar   && [ $status -eq 1 ]
+    run ${STAMP} -r foobar 1 && [ $status -eq 1 ]
+    # too few arguments -s
+    run ${STAMP} -s && [ $status -eq 1 ]
+}
+
 teardown() {
     rm -r "${STAMP_PATH}"
 }
