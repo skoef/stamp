@@ -389,7 +389,10 @@ static char *read_file_line(FILE *fp)
 		return NULL;
 	}
 
-	return line;
+	/* strip trailing whitespace */
+	char *retval = strtok(line, "\n");
+
+	return retval;
 }
 
 /* Wrapper to read_file_line that returns Note instead of char
@@ -932,11 +935,8 @@ static int delete_all(char *category)
 	confirm = get_memo_conf_value("STAMP_CONFIRM_DELETE");
 
 	if (confirm) {
-
 		if (strcmp(confirm, "no") == 0)
 			ask = 0;
-
-		free(confirm);
 	}
 
 	char *path = get_memo_file_path(category);
@@ -1119,8 +1119,13 @@ static char *get_memo_conf_value(const char *prop)
 	char *conf_path = NULL;
 	FILE *fp = NULL;
 
-	conf_path = get_memo_conf_path();
+	/* first, check the environment for config */
+	retval = getenv(prop);
+	if (retval != NULL)
+		return retval;
 
+	/* config not found, check stamprc */
+	conf_path = get_memo_conf_path();
 	if (conf_path == NULL)
 		return NULL;
 
@@ -1237,70 +1242,26 @@ static char *get_memo_default_path()
  */
 static char *get_memo_file_path(char *category)
 {
-	char *path = NULL;
-	char *env_path = NULL;
-	char *conf_path = NULL;
-
-	env_path = getenv("STAMP_PATH");
-	/* Try and see if environment variable STAMP_PATH is set
-	 * and use value from it as a path */
-	if (env_path != NULL) {
-		/* +1 for \0 byte */
-		path = (char*)malloc((strlen(env_path) + 1) * sizeof(char));
-
-		if (path == NULL) {
-			fail(stderr, "%s malloc failed\n", __func__);
-			return NULL;
-		}
-
-		strcpy(path, env_path);
-
-		goto prepdir;
-	}
-
-
-	conf_path = get_memo_conf_path();
-	if (conf_path == NULL)
-		return NULL;
-
-	if (!file_exists(conf_path)) {
-		/* Config file not found, so fallback to ~/.stamp */
+	char *path = get_memo_conf_value("STAMP_PATH");
+	if (!path)
 		path = get_memo_default_path();
-
-	} else {
-		/* Configuration file found, read .memo location
-		   from it */
-		path = get_memo_conf_value("STAMP_PATH");
-
-		if (path == NULL) {
-			/* Failed to get the path. Most likely user did not
-			 * specify STAMP_PATH in the configuration file at all
-			 * and configuration file is used for setting other
-			 * properties like STAMP_CONFIRM_DELETE.
-			 *
-			 * Let's default to ~/.stamp
-			 */
-			path = get_memo_default_path();
-		}
-
-	}
-
-	free(conf_path);
-
-prepdir:
 
 	/* prepare stamp path */
 	mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR);
 	chmod(path, 0700);
 
-	/* append category to stamp path */
-	if (strlen(category) > 0) {
-		path = (char *)realloc(path, (strlen(path) + strlen(category) + 2) * sizeof(char));
-		strcat(path, "/");
-		strcat(path, category);
-	}
+	if (strlen(category) == 0)
+		return path;
 
-	return path;
+	/* append category to stamp path
+	 * + 2 for leading slash and nul byte
+	 */
+	char *cat_path = (char *)malloc((strlen(path) + strlen(category) + 2) * sizeof(char));
+	strcpy(cat_path, path);
+	strcat(cat_path, "/");
+	strcat(cat_path, category);
+
+	return cat_path;
 }
 
 

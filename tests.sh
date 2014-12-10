@@ -36,10 +36,10 @@ setup() {
 }
 
 @test "delete all notes from category" {
-    skip "no way to confirm from stdin yet"
     run ${STAMP} -a foobar testing1
+    export STAMP_CONFIRM_DELETE=no
     run ${STAMP} -D foobar
-    [ -f "${STAMP_PATH}/foobar" ] && [ ! -s "${STAMP_PATH}/foobar" ]
+    [ ! -f "${STAMP_PATH}/foobar" ]
 }
 
 @test "export notes to HTML" {
@@ -80,6 +80,10 @@ setup() {
         run ${STAMP} -l foobar ${i}
         [ "${lines[0]}"  = ${shouldbe} ]
     done
+}
+
+@test "config from environment" {
+    skip "not implemented yet"
 }
 
 @test "show categories" {
