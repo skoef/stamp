@@ -31,17 +31,14 @@
  * about Windows...uninstd.h is not natively available for it(?).
  */
 
-/* To enable _POSIX_C_SOURCE feature test macro */
-#define _XOPEN_SOURCE 600
-
-/* Make only POSIX.2 regexp functions available */
-#define _POSIX_C_SOURCE 200112L
-
 #ifdef _WIN32
 # undef __STRICT_ANSI__
 # define S_IRGRP 0
 # define S_IROTH 0
 #endif
+
+/* enable prototyping getline() */
+#define _WITH_GETLINE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,6 +57,8 @@
 #endif
 #include <sys/stat.h>
 
+#define NOTE_FMT "%d\t%s\t%s\n"
+
 #define ARGCHECK(x, y, z) if (argc < y) { \
 	char *err = (char *)malloc((19 + strlen(z)) * sizeof(char));\
 	sprintf(err, "Error: -%s missing an argument %s\n", x, z); \
@@ -69,7 +68,7 @@
 	return 1;\
 }
 
-#define FREENOTE(x) free(x.message);
+#define FREENOTE(x) if (x.message) free(x.message);
 
 typedef enum {
 	NOTE_DATE = 1,
@@ -84,38 +83,39 @@ struct Note {
 };
 
 /* Function declarations */
-static char *read_file_line(FILE *fp);
-static int  add_notes_from_stdin(char *category);
-static char *get_memo_file_path(char *category);
-static char *get_memo_default_path();
-static char *get_memo_conf_path();
-static char *get_temp_memo_path(char *category);
-static char *get_memo_conf_value(const char *prop);
-static int   is_valid_date_format(const char *date, int silent_errors);
-static int   file_exists(const char *path);
-static void  remove_content_newlines(char *content);
-static int   add_note(char *category, char *content, const char *date);
-static int   replace_note(char *category, int id, const char *data);
-static int   get_next_id(char *category);
-static int   delete_note(char *category, int id);
-static int   show_notes(char *category);
-static int   show_notes_tree(char *category);
-static int   show_categories();
-static int   count_file_lines(FILE *fp);
-static char  *note_part_replace(NotePart_t part, char *note_line, const char *data);
-static int   search_notes(char *category, const char *search);
-static int   search_regexp(char *category, const char *regexp);
+static char       *read_file_line(FILE *fp);
+static struct      Note read_file_note(FILE *fp);
+static int         add_notes_from_stdin(char *category);
+static char       *get_memo_file_path(char *category);
+static char       *get_memo_default_path();
+static char       *get_memo_conf_path();
+static char       *get_temp_memo_path(char *category);
+static char       *get_memo_conf_value(const char *prop);
+static int         is_valid_date_format(const char *date, int silent_errors);
+static int         file_exists(const char *path);
+static void        remove_content_newlines(char *content);
+static int         add_note(char *category, char *content, const char *date);
+static int         replace_note(char *category, int id, const char *data);
+static int         get_next_id(char *category);
+static int         delete_note(char *category, int id);
+static int         show_notes(char *category);
+static int         show_notes_tree(char *category);
+static int         show_categories();
+static int         count_file_lines(FILE *fp);
+static char       *note_part_replace(NotePart_t part, char *note_line, const char *data);
+static int         search_notes(char *category, const char *search);
+static int         search_regexp(char *category, const char *regexp);
 static const char *export_html(char *category, const char *path);
 static struct Note line_to_Note(char *line);
-static void  output_default(struct Note note);
-static void  output_without_date(struct Note note);
-static void  show_latest(char *category, int count);
-static FILE *get_memo_file_ptr();
-static FILE *get_memo_tmpfile_ptr();
-static void  usage();
-static void  fail(FILE *out, const char *fmt, ...);
-static int   delete_all(char *category);
-static void  show_memo_file_path();
+static void        output_default(struct Note note);
+static void        output_without_date(struct Note note);
+static void        show_latest(char *category, int count);
+static FILE       *get_memo_file_ptr();
+static FILE       *get_memo_tmpfile_ptr();
+static void        usage();
+static void        fail(FILE *out, const char *fmt, ...);
+static int         delete_all(char *category);
+static void        show_memo_file_path();
 
 
 #define VERSION 1.4
@@ -381,47 +381,32 @@ static char *read_file_line(FILE *fp)
 	if (!fp)
 		return NULL;
 
-	int length = 128;
-	char *buffer = NULL;
+	char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
 
-	buffer = (char*)malloc(sizeof(char) * length);
-
-	if (buffer == NULL) {
-		fail(stderr,"%s: malloc failed\n", __func__);
+	if ((read = getline(&line, &len, fp)) == -1) {
 		return NULL;
 	}
 
-	int count = 0;
-
-	char ch = getc(fp);
-
-       /* Read char by char until the end of the line.
-        * and allocate memory as needed.
-        */
-	while ((ch != '\n') && (ch != EOF)) {
-		if (count == length) {
-			length += 128;
-			buffer = realloc(buffer, length);
-
-			if (buffer == NULL) {
-				fail(stderr,
-					"%s: realloc failed\n",
-					__func__);
-				return NULL;
-			}
-		}
-
-		buffer[count] = ch;
-		count++;
-		ch = getc(fp);
-	}
-
-	buffer[count] = '\0';
-	buffer = realloc(buffer, count + 1);
-
-	return buffer;
+	return line;
 }
 
+/* Wrapper to read_file_line that returns Note instead of char
+ *
+ * Return NULL on failure.
+ */
+static struct Note read_file_note(FILE *fp)
+{
+	struct Note note;
+	char *line = read_file_line(fp);
+	if (line) {
+		note = line_to_Note(line);
+		free(line);
+	}
+
+	return note;
+}
 
 /* Simply read all the lines from the .stamp file
  * and return the id of the last line plus one.
@@ -432,7 +417,7 @@ static int get_next_id(char *category)
 {
 	int id = 0;
 	FILE *fp = NULL;
-	char *line = NULL;
+	struct Note note;
 	int lines = 0;
 	int current = 0;
 
@@ -451,20 +436,19 @@ static int get_next_id(char *category)
 	}
 
 	for (;;) {
-		line = read_file_line(fp);
+		note = read_file_note(fp);
 
 		/* Check if we're at the last line */
-		if (line && current == lines) {
-			char *endptr;
-			id = strtol(line, &endptr, 10);
-			free(line);
+		if (note.id && current == lines) {
+			id = note.id;
+			FREENOTE(note);
 			break;
 		}
 
 		current++;
 
-		if (line)
-			free(line);
+		if (note.id)
+			FREENOTE(note);
 	}
 
 	fclose(fp);
@@ -472,6 +456,8 @@ static int get_next_id(char *category)
 	return id + 1;
 }
 
+/* Convert stamp line to Note struct
+ */
 static struct Note line_to_Note(char *line)
 {
 	struct Note note;
@@ -485,7 +471,7 @@ static struct Note line_to_Note(char *line)
 	if (token && strlen(token) == 10)
 		strcpy(note.date, token);
 
-	token = strtok(NULL, "\t");
+	token = strtok(NULL, "\n");
 	if (token) {
 		note.message = (char *) malloc((strlen(token) + 1) * sizeof(char));
 		strcpy(note.message, token);
@@ -501,7 +487,6 @@ static struct Note line_to_Note(char *line)
 static int show_notes(char *category)
 {
 	FILE *fp = NULL;
-	char *line;
 	int count = 0;
 	int lines = 0;
 	struct Note note;
@@ -523,14 +508,12 @@ static int show_notes(char *category)
 	}
 
 	for (int i = 0; i <= lines; i++) {
-		line = read_file_line(fp);
+		note = read_file_note(fp);
 
-		if (!line)
+		if (!note.id)
 			continue;
 
-		note = line_to_Note(line);
 		output_default(note);
-		free(line);
 		FREENOTE(note);
 	}
 
@@ -538,7 +521,6 @@ static int show_notes(char *category)
 
 	return count;
 }
-
 
 static void output_without_date(struct Note note)
 {
@@ -589,15 +571,13 @@ static int show_notes_tree(char *category)
 	 * of it to dates array
 	 */
 	for (int n = 0; n <= lines; n++) {
-		char *line = read_file_line(fp);
-		if (!line)
+		note = read_file_note(fp);
+		if (!note.id)
 			continue;
 
-		note = line_to_Note(line);
 		int has_date = 0;
-
 		if (note.date == NULL) {
-			free(line);
+			FREENOTE(note);
 			fclose(fp);
 			fail(stderr, "%s problem getting date\n",
 				__func__);
@@ -624,7 +604,6 @@ static int show_notes_tree(char *category)
 			date_index++;
 		}
 
-		free(line);
 		FREENOTE(note);
 	}
 
@@ -643,13 +622,12 @@ static int show_notes_tree(char *category)
 			rewind(fp);
 			printf("%s\n", dates[i]);
 			for (int j = 0; j <= lines; j++) {
-				char *line = read_file_line(fp);
-				if (!line)
+				note = read_file_note(fp);
+				if (!note.id)
 					continue;
 
-				note = line_to_Note(line);
 				if (note.date == NULL) {
-					free(line);
+					FREENOTE(note);
 					fclose(fp);
 					return -1;
 				}
@@ -657,7 +635,6 @@ static int show_notes_tree(char *category)
 				if (strcmp(note.date, dates[i]) == 0)
 					output_without_date(note);
 
-				free(line);
 				FREENOTE(note);
 			}
 
@@ -727,7 +704,6 @@ static int search_notes(char *category, const char *search)
 {
 	FILE *fp = NULL;
 	int count = 0;
-	char *line;
 	int lines = 0;
 	struct Note note;
 
@@ -747,22 +723,18 @@ static int search_notes(char *category, const char *search)
 	}
 
 	for (int i = 0; i <= lines; i++) {
-		line = read_file_line(fp);
+		note = read_file_note(fp);
 
-		if (!line)
+		if (!note.id)
 			continue;
 
 		/* Check if the search term matches */
-		const char *tmp = line;
-
-		if ((strstr(tmp, search)) != NULL){
-			note = line_to_Note(line);
+		if ((strstr(note.message, search)) != NULL){
 			output_default(note);
-			FREENOTE(note);
 			count++;
 		}
 
-		free(line);
+		FREENOTE(note);
 	}
 
 	fclose(fp);
@@ -779,7 +751,6 @@ static int search_regexp(char *category, const char *regexp)
 	int count = 0;
 	regex_t regex;
 	int ret;
-	char *line = NULL;
 	char lines = 0;
 	FILE *fp = NULL;
 	char buffer[100];
@@ -808,29 +779,26 @@ static int search_regexp(char *category, const char *regexp)
 	}
 
 	for (int i = 0; i <= lines; i++) {
-		line = read_file_line(fp);
+		note = read_file_note(fp);
 
-		if (!line)
+		if (!note.id)
 			continue;
 
-		ret = regexec(&regex, line, 0, NULL, 0);
+		ret = regexec(&regex, note.message, 0, NULL, 0);
 
 		if (ret == 0) {
-			note = line_to_Note(line);
 			output_default(note);
-			FREENOTE(note);
 			count++;
 		} else if (ret != 0 && ret != REG_NOMATCH) {
 			/* Something went wrong while executing
 			   regexp. Clean up and exit loop. */
 			regerror(ret, &regex, buffer, sizeof(buffer));
 			fail(stderr, "%s: %s\n", __func__, buffer);
-			free(line);
-
+			FREENOTE(note);
 			break;
 		}
 
-		free(line);
+		FREENOTE(note);
 	}
 
 	regfree(&regex);
@@ -845,7 +813,7 @@ static int search_regexp(char *category, const char *regexp)
  */
 static void output_default(struct Note note)
 {
-	printf("%d\t%s\t%s\n",
+	printf(NOTE_FMT,
 		note.id,
 		note.date,
 		note.message
@@ -860,7 +828,7 @@ static const char *export_html(char *category, const char *path)
 {
 	FILE *fp = NULL;
 	FILE *fpm = NULL;
-	char *line = NULL;
+	struct Note note;
 	int lines = 0;
 
 	fp = fopen(path, "w");
@@ -892,22 +860,14 @@ static const char *export_html(char *category, const char *path)
 	fprintf(fp, "<h1>Notes from Stamp, %s</h1>\n", category);
 	fprintf(fp, "<table>\n");
 
-	char *token;
 	for (int i = 0; i <= lines; i++) {
-		line = read_file_line(fpm);
+		note = read_file_note(fpm);
 
-		if (!line)
+		if (!note.id)
 			continue;
 
-		fprintf(fp, "<tr>");
-		token = strtok(line, "\t");
-		while (token) {
-			fprintf(fp, "<td>%s</td>", token);
-			token = strtok(NULL, "\t");
-		}
-
-		fprintf(fp, "</tr>\n");
-		free(line);
+		fprintf(fp, "<tr><td>%d</td><td>%s</td><td>%s</td></tr>\n", note.id, note.date, note.message);
+		FREENOTE(note);
 	}
 
 	fprintf(fp, "</table>\n</body>\n</html>\n");
@@ -922,7 +882,7 @@ static const char *export_html(char *category, const char *path)
 static void show_latest(char *category, int n)
 {
 	FILE *fp = NULL;
-	char *line;
+	struct Note note;
 	int lines = 0;
 	int start;
 	int current = 0;
@@ -935,7 +895,7 @@ static void show_latest(char *category, int n)
 		fail(stderr,"%s: counting lines failed\n", __func__);
 		return;
 	}
-	
+
 	/* If n is bigger than the count of lines or smaller
 	 * than zero we will show all the lines.
 	 */
@@ -945,15 +905,15 @@ static void show_latest(char *category, int n)
 		start = lines - n;
 
 	for (int i = 0; i <= lines; i++) {
-		line = read_file_line(fp);
+		note = read_file_note(fp);
 
-		if (line) {
-			if (current > start)
-				printf("%s\n", line);
-			free(line);
-		}
+		if (!note.id)
+			continue;
 
-		current++;
+		if (current++ > start)
+			output_default(note);
+
+		FREENOTE(note);
 	}
 
 	fclose(fp);
@@ -1062,23 +1022,25 @@ static int delete_note(char *category, int id)
 	}
 
 	int found = 0;
+	struct Note note;
 	for (int i = 0; i <= lines; i++) {
-		char *line = read_file_line(fp);
+		note = read_file_note(fp);
 
-		if (!line)
+		if (!note.id)
 			continue;
 
 		/* when ID is found, skip this line  */
-		char *endptr;
-		int curr_id = strtol(line, &endptr, 10);
-		if (curr_id == id)
+		if (note.id == id)
 			found = 1;
 		else {
 			/* write line to tmpfile */
-			fprintf(tmpfp, "%s\n", line);
+			fprintf(tmpfp, NOTE_FMT,
+				note.id,
+				note.date,
+				note.message);
 		}
 
-		free(line);
+		FREENOTE(note);
 	}
 
 	int ret = 0;
@@ -1700,29 +1662,8 @@ static void show_memo_file_path()
 /* Program entry point */
 int main(int argc, char *argv[])
 {
-	char *path = NULL;
 	int c;
 	int has_valid_options = 0;
-
-	path = get_memo_file_path("");
-
-	if (path == NULL)
-		return -1;
-
-	if (!file_exists(path)) {
-		int fd = open(path, O_RDWR | O_CREAT,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-		if (fd == -1) {
-			fail(stderr,"%s: failed to create empty stamp\n",
-				__func__);
-			free(path);
-			return -1;
-		}
-
-		close(fd);
-	}
-
 	opterr = 0;
 
 	if (argc == 1) {
@@ -1823,8 +1764,6 @@ int main(int argc, char *argv[])
 
 	if (argc > 1 && !has_valid_options)
 		printf("invalid input, see stamp -h for help\n");
-
-	free(path);
 
 	return ret;
 }
