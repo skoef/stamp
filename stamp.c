@@ -56,6 +56,7 @@
 # include <regex.h>
 #endif
 #include <sys/stat.h>
+#include <errno.h>
 
 #define NOTE_FMT "%d\t%s\t%s\n"
 
@@ -653,7 +654,7 @@ static int show_notes_tree(char *category)
 /* Show all categories of notes
  *
  * Basically just lists files of stamp directory.
- * Returns 0 on success or -1 if function fails.
+ * Returns number of categories on success or -1 if function fails.
  */
 static int show_categories()
 {
@@ -672,9 +673,10 @@ static int show_categories()
 
 	struct dirent *ent;
 	FILE *fp;
+	int categories = 0;
 	while ((ent = readdir(dir)) != NULL) {
 		/* only files */
-		if (ent->d_type != 8) // DT_REG
+		if (ent->d_type != DT_REG)
 			continue;
 
 		fp = get_memo_file_ptr(ent->d_name, "r");
@@ -682,6 +684,8 @@ static int show_categories()
 			printf("%s\n", ent->d_name);
 			continue;
 		}
+
+		categories++;
 
 		int num = count_file_lines(fp);
 		if (num < 0)
@@ -696,7 +700,7 @@ static int show_categories()
 
 	closedir(dir);
 
-	return 0;
+	return categories;
 }
 
 /* Search if a note contains the search term.
@@ -933,10 +937,8 @@ static int delete_all(char *category)
 
 	confirm = get_memo_conf_value("STAMP_CONFIRM_DELETE");
 
-	if (confirm) {
-		if (strcmp(confirm, "no") == 0)
-			ask = 0;
-	}
+	if (confirm && strcmp(confirm, "no") == 0)
+		ask = 0;
 
 	char *path = get_memo_file_path(category);
 
@@ -1020,6 +1022,7 @@ static int delete_note(char *category, int id)
 		return -1;
 	}
 
+	int retval = 0;
 	int found = 0;
 	struct Note note;
 	for (int i = 0; i <= lines; i++) {
@@ -1033,35 +1036,47 @@ static int delete_note(char *category, int id)
 			found = 1;
 		else {
 			/* write line to tmpfile */
-			fprintf(tmpfp, NOTE_FMT,
+			int written;
+			if ((written = fprintf(tmpfp, NOTE_FMT,
 				note.id,
 				note.date,
-				note.message);
+				note.message)) < 0) {
+				fail(stderr, "%s: failed writing tmpfile: %s (%d)\n",
+					strerror(errno), errno);
+				retval = -1;
+			}
+
 		}
 
 		FREENOTE(note);
 	}
 
-	int ret = 0;
-	if (found == 1) {
-		if (rename(tmpfile, memofile) != -1)
+	fclose(fp);
+
+	/* if writing to tmpfile went OK, proceed */
+	if (retval == 0) {
+		/* did we find the ID we were looking for */
+		if (found == 1) {
+			/* move tmpfile over memofile */
+			if (rename(tmpfile, memofile) != -1)
+				remove(tmpfile);
+			else {
+				fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
+				retval = -1;
+			}
+		} else {
+			/* ID not found, remove tmpfile */
 			remove(tmpfile);
-		else {
-			fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
-			ret = -1;
+			fail(stderr, "note with ID %d not found in category %s\n", id, category);
+			retval = -1;
 		}
-	} else {
-		remove(tmpfile);
-		fail(stderr, "note with ID %d not found in category %s\n", id, category);
-		ret = -1;
 	}
 
 	free(memofile);
 	free(tmpfile);
-	fclose(fp);
 	fclose(tmpfp);
 
-	return ret;
+	return retval;
 }
 
 
@@ -1609,13 +1624,10 @@ static void show_memo_file_path()
 
 	path = get_memo_file_path("");
 
-	if (path == NULL) {
+	if (path == NULL)
 		fail(stderr,"%s: can't retrieve path\n", __func__);
-	}
-	else {
+	else
 		printf("%s\n", path);
-		free(path);
-	}
 }
 
 
@@ -1632,7 +1644,7 @@ int main(int argc, char *argv[])
 	}
 
 	int ret = 0;
-	int results;
+	int result;
 	while ((c = getopt(argc, argv, "a:d:D:e:f:F:hi:l:Lo:pr:s:V")) != -1){
 		has_valid_options = 1;
 
@@ -1651,10 +1663,12 @@ int main(int argc, char *argv[])
 				break;
 			case 'd':
 				ARGCHECK("d", 4, "ID");
-				delete_note(argv[2], atoi(argv[3]));
+				if ((result = delete_note(argv[2], atoi(argv[3]))) != 0)
+					ret = 2;
 				break;
 			case 'D':
-				delete_all(optarg);
+				if ((result = delete_all(optarg)) != 0)
+					ret = 2;
 				break;
 			case 'e':
 				ARGCHECK("e", 4, "path");
@@ -1662,12 +1676,12 @@ int main(int argc, char *argv[])
 				break;
 			case 'f':
 				ARGCHECK("f", 4, "search string");
-				if ((results = search_notes(argv[2], argv[3])) == 0)
+				if ((result = search_notes(argv[2], argv[3])) == 0)
 					ret = 2;
 				break;
 			case 'F':
 				ARGCHECK("F", 4, "regex");
-				if ((results = search_regexp(argv[2], argv[3])) == 0)
+				if ((result = search_regexp(argv[2], argv[3])) == 0)
 					ret = 2;
 				break;
 			case 'h':
@@ -1684,7 +1698,8 @@ int main(int argc, char *argv[])
 				show_latest(argv[2], atoi(argv[3]));
 				break;
 			case 'L':
-				show_categories();
+				if ((result = show_categories()) <= 0)
+					ret = 2;
 				break;
 			case 'p':
 				show_memo_file_path();

@@ -38,9 +38,13 @@ setup() {
     run ${STAMP} -a foobar testing1 2014-12-09
     run ${STAMP} -a foobar testing2
     run ${STAMP} -a foobar testing3 2014-12-09
+    # delete existing note, should work
     run ${STAMP} -d foobar 2
     run cmp "${STAMP_PATH}/foobar" ${FIXTURE_TXT}
     [ $status -eq 0 ]
+    # delete note again, should fail
+    run ${STAMP} -d foobar 2
+    [ $status -eq 2 ]
 }
 
 @test "delete all notes from category" {
