@@ -154,23 +154,23 @@ static int is_valid_date_format(const char *date, int silent_errors)
 	if (y % 400 == 0 || y % 100 != 0 || y % 4 == 0)
 		day_count[1] = 29;
 
-	if (m < 13 && m > 0) {
-		if (d <= day_count[m - 1]) {
-			return 0;
-		}
-		else {
-			if (!silent_errors)
-				fail(stderr, "%s: invalid day\n", __func__);
-		}
-	} else {
+	/* check month */
+	if (m <= 0 || m >= 13) {
 		if (!silent_errors)
-			fail(stderr, "%s: invalid month\n", __func__);
+			fail(stderr, "%s: invalid month %d\n", __func__, m);
+
+		return -1;
 	}
 
-	if (!silent_errors)
-		fail(stderr, "%s: parsing date failed\n", __func__);
+	/* check day */
+	if (d <= 0 || d > day_count[m - 1]) {
+		if (!silent_errors)
+			fail(stderr, "%s: invalid day %d\n", __func__, d);
 
-	return -1;
+		return -1;
+	}
+
+	return 0;
 }
 
 

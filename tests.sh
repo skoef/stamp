@@ -30,7 +30,16 @@ setup() {
     run ${STAMP} -a foobar testing 1970-01-01
     run cmp "${STAMP_PATH}/foobar" ${FIXTURE_TXT}
     [ $status -eq 0 ]
+    # check some invalid dates
     run ${STAMP} -a foobar testing invaliddate
+    [ $status -eq 1 ]
+    run ${STAMP} -a foobar testing 1970-13-01
+    [ $status -eq 1 ]
+    run ${STAMP} -a foobar testing 1970-02-31
+    [ $status -eq 1 ]
+    run ${STAMP} -a foobar testing 1970-01-32
+    [ $status -eq 1 ]
+    run ${STAMP} -a foobar testing 1970-01-00
     [ $status -eq 1 ]
 }
 
@@ -102,7 +111,7 @@ setup() {
     run ${STAMP} -d testing 1
     run ${STAMP} -L
     [ $status -eq 0 ]
-    skip "order of readdir is guaranteed"
+    skip "order of readdir is not guaranteed"
     [ "${lines[0]}" = "barfoo (1 note)" ]
     [ "${lines[1]}" = "foobar (2 notes)" ]
     [ "${lines[2]}" = "testing (empty)" ]
