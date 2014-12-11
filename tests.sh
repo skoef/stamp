@@ -13,6 +13,12 @@ setup() {
     export FIXTURE_SUM="${FIXTURE_PATH}/${BATS_TEST_NAME}.sum"
 }
 
+@test "seting custom STAMP_PATH" {
+    run ${STAMP} -p
+    [ $status -eq 0 ]
+    [ $lines = ${STAMP_PATH} ]
+}
+
 @test "create note" {
     run ${STAMP} -a foobar testing
     shouldbe=$(date "+1%t%Y-%m-%d%ttesting")
@@ -24,6 +30,8 @@ setup() {
     run ${STAMP} -a foobar testing 1970-01-01
     run cmp "${STAMP_PATH}/foobar" ${FIXTURE_TXT}
     [ $status -eq 0 ]
+    run ${STAMP} -a foobar testing invaliddate
+    [ $status -eq 1 ]
 }
 
 @test "delete specific note" {
@@ -82,12 +90,7 @@ setup() {
     done
 }
 
-@test "config from environment" {
-    skip "not implemented yet"
-}
-
 @test "show categories" {
-    skip "output of readdir is not always in same order"
     run ${STAMP} -a foobar testing1
     run ${STAMP} -a foobar testing2
     run ${STAMP} -a barfoo testing
@@ -95,6 +98,7 @@ setup() {
     run ${STAMP} -d testing 1
     run ${STAMP} -L
     [ $status -eq 0 ]
+    skip "order of readdir is guaranteed"
     [ "${lines[0]}" = "barfoo (1 note)" ]
     [ "${lines[1]}" = "foobar (2 notes)" ]
     [ "${lines[2]}" = "testing (empty)" ]

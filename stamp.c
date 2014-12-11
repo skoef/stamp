@@ -670,7 +670,6 @@ static int show_categories()
 		return -1;
 	}
 
-	free(path);
 	struct dirent *ent;
 	FILE *fp;
 	while ((ent = readdir(dir)) != NULL) {
