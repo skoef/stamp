@@ -31,96 +31,23 @@
  * about Windows...uninstd.h is not natively available for it(?).
  */
 
-#ifdef _WIN32
-# undef __STRICT_ANSI__
-# define S_IRGRP 0
-# define S_IROTH 0
-#endif
-
 /* enable prototyping getline() */
 #define _WITH_GETLINE
 
+#include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <regex.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#include <ctype.h>
-#include <stdarg.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <dirent.h>
-#ifdef _WIN32
-# include <pcreposix.h>
-#else
-# include <regex.h>
-#endif
-#include <sys/stat.h>
-#include <errno.h>
-
-#define NOTE_FMT "%d\t%s\t%s\n"
-
-#define ARGCHECK(x, y, z) if (argc < y) { \
-	char *err = (char *)malloc((19 + strlen(z)) * sizeof(char));\
-	sprintf(err, "Error: -%s missing an argument %s\n", x, z); \
-	fail(stderr, err); \
-	free(err); \
-	usage(); \
-	return 1;\
-}
-
-#define FREENOTE(x) if (x.message) free(x.message);
-
-typedef enum {
-	NOTE_DATE = 1,
-	NOTE_CONTENT = 2
-
-} NotePart_t;
-
-struct Note {
-	int  id;
-	char date[10];
-	char *message;
-};
-
-/* Function declarations */
-static char       *read_file_line(FILE *fp);
-static struct      Note read_file_note(FILE *fp);
-static int         add_notes_from_stdin(char *category);
-static char       *get_memo_file_path(char *category);
-static char       *get_memo_default_path();
-static char       *get_memo_conf_path();
-static char       *get_temp_memo_path(char *category);
-static char       *get_memo_conf_value(const char *prop);
-static int         is_valid_date_format(const char *date, int silent_errors);
-static int         file_exists(const char *path);
-static void        remove_content_newlines(char *content);
-static int         add_note(char *category, char *content, const char *date);
-static int         replace_note(char *category, int id, const char *data);
-static int         get_next_id(char *category);
-static int         delete_note(char *category, int id);
-static int         show_notes(char *category);
-static int         show_notes_tree(char *category);
-static int         show_categories();
-static int         count_file_lines(FILE *fp);
-static char       *note_part_replace(NotePart_t part, char *note_line, const char *data);
-static int         search_notes(char *category, const char *search);
-static int         search_regexp(char *category, const char *regexp);
-static const char *export_html(char *category, const char *path);
-static struct Note line_to_Note(char *line);
-static void        output_default(struct Note note);
-static void        output_without_date(struct Note note);
-static void        show_latest(char *category, int count);
-static FILE       *get_memo_file_ptr();
-static FILE       *get_memo_tmpfile_ptr();
-static void        usage();
-static void        fail(FILE *out, const char *fmt, ...);
-static int         delete_all(char *category);
-static void        show_memo_file_path();
-
-
-#define VERSION 1.4
-
+#include "stamp.h"
 
 /* Check if given date is in valid date format.
  * Stamp assumes the date format to be yyyy-MM-dd.
@@ -1090,12 +1017,7 @@ static char *get_memo_conf_path()
 	size_t len = 0;
 
 	env = getenv("HOME");
-#ifdef _WIN32
-	if (env == NULL)
-		env = getenv("USERPROFILE");
-#endif
-
-	if (env == NULL){
+	if (env == NULL) {
 		fail(stderr,"%s: getenv(\"HOME\") failed\n", __func__);
 		return NULL;
 	}
@@ -1218,12 +1140,8 @@ static char *get_memo_default_path()
 	char *path = NULL;
 	size_t len = 0;
 	char *env = getenv("HOME");
-#ifdef _WIN32
-	if (env == NULL)
-		env = getenv("USERPROFILE");
-#endif
 
-	if (env == NULL){
+	if (env == NULL) {
 		fail(stderr,"%s: getenv(\"HOME\") failed\n", __func__);
 		return NULL;
 	}
