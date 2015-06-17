@@ -1,7 +1,7 @@
 /* Stamp is a Unix-style note-taking software.
  *
  * Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>
- * Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>
+ * Copyright (C) 2014 Niko Rosvall <niko@byteptr.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,8 +27,7 @@
  *
  * If you port Stamp for another platform, please let me know,
  * no reason for that other than it's nice to know where Stamp runs.
- * Stamp should be fairly portable for POSIX systems. I don't know
- * about Windows...uninstd.h is not natively available for it(?).
+ * Stamp should be fairly portable for POSIX systems.
  */
 
 /* enable prototyping getline() */
@@ -1528,7 +1527,7 @@ For more information and examples see man stamp(1).\n\
 AUTHORS\n\
 \n\
     Copyright (C) 2014 Reinier Schoof <reinier@skoef.net>\n\
-    Copyright (C) 2014 Niko Rosvall <niko@ideabyte.net>\n\
+    Copyright (C) 2014 Niko Rosvall <niko@byteptr.com>\n\
 \n\
     Released under license GPL-3+. For more information, see\n\
     http://www.gnu.org/licenses\n\
