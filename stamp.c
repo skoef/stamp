@@ -983,12 +983,14 @@ static int delete_note(char *category, int id)
 	if (retval == 0) {
 		/* did we find the ID we were looking for */
 		if (found == 1) {
+			retval = rename(tmpfile, memofile);
 			/* move tmpfile over memofile */
-			if (rename(tmpfile, memofile) != -1)
-				remove(tmpfile);
+			if (retval == 0)
+				printf("note %d removed from category %s\n", id, category);
 			else {
 				fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
-				retval = -1;
+				if (remove(tmpfile) != 0)
+					fail(stderr, "could not clean up %s either\n", tmpfile);
 			}
 		} else {
 			/* ID not found, remove tmpfile */
