@@ -8,6 +8,10 @@ ifeq ($(OS),Windows_NT)
 LDFLAGS=-lpcre
 endif
 
+ifdef DEBUG
+CFLAGS+= -ggdb -O0 -save-temps
+endif
+
 all: stamp
 
 stamp: stamp.o
