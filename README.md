@@ -9,6 +9,7 @@ $ stamp -s movies
 1   2014-11-15  Frozen
 2   2014-12-01  Cloudy with a chance of meatballs.
 $ stamp -d movies 1
+note 1 removed from category movies
 ```
 [Memo]:http://getmemo.org
 [Stampnote]:http://slidetorock.com
