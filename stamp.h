@@ -73,7 +73,6 @@ static void        output_default(struct Note note);
 static void        output_without_date(struct Note note);
 static void        show_latest(char *category, int count);
 static FILE       *get_memo_file_ptr();
-static FILE       *get_memo_tmpfile_ptr();
 static void        usage();
 static void        fail(FILE *out, const char *fmt, ...);
 static int         delete_all(char *category);

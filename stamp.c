@@ -176,60 +176,39 @@ static void fail(FILE *out, const char *fmt, ...)
 }
 
 
-/* Get a FILE descriptor for temp file.
- * Caller is responsible for closing the
- * file pointer.
- *
- * Return NULL on failure.
- */
-static FILE *get_memo_tmpfile_ptr(char *category)
-{
-	FILE *fp = NULL;
-	char *tmp = NULL;
-
-	tmp = get_temp_memo_path(category);
-
-	if (tmp == NULL) {
-		fail(stderr, "%s: error getting a temp file\n", __func__);
-		return NULL;
-	}
-
-	fp = fopen(tmp, "w");
-
-	if (fp == NULL) {
-		fail(stderr, "%s: error opening temp file\n", __func__);
-		free(tmp);
-		return NULL;
-	}
-
-	free(tmp);
-
-	return fp;
-}
-
-
 /* Get open FILE* for stamp file.
  * Returns NULL of failure.
  * Caller must close the file pointer after calling the function
  * succesfully.
  */
-static FILE *get_memo_file_ptr(char *category, char *mode)
+static FILE *get_memo_file_ptr(char *category, char *mode, char *suffix)
 {
 	FILE *fp = NULL;
 	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s: error getting stamp path\n",
-			__func__);
+		fail(stderr, "%s: error getting stamp path\n", __func__);
 		return NULL;
 	}
 
-	fp = fopen(path, mode);
+	// append suffix to filename
+	if (strlen(suffix) > 0) {
+		char *path_suffix = (char*) malloc(sizeof(char) * (strlen(path) + strlen(suffix) + 1));
+		if (path_suffix == NULL) {
+			fail(stderr, "%s: malloc failed\n", __func__);
+			return NULL;
+		}
 
-	if (fp == NULL) {
-		fail(stderr,"%s: error opening %s\n", __func__, path);
-		return NULL;
-	}
+		strcpy(path_suffix, path);
+		strcat(path_suffix, suffix);
+
+		fp = fopen(path_suffix, mode);
+		free(path_suffix);
+	} else
+		fp = fopen(path, mode);
+
+	if (fp == NULL)
+		fail(stderr, "%s: error opening file: %s\n", __func__, strerror(errno));
 
 	free(path);
 
@@ -351,7 +330,7 @@ static int get_next_id(char *category)
 	int lines = 0;
 	int current = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 
 	lines = count_file_lines(fp);
 
@@ -421,7 +400,7 @@ static int show_notes(char *category)
 	int lines = 0;
 	struct Note note;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 
 	lines = count_file_lines(fp);
 	count = lines;
@@ -480,7 +459,7 @@ static int show_notes_tree(char *category)
 	int date_index = 0;
 	struct Note note;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
@@ -605,7 +584,7 @@ static int show_categories()
 		if (ent->d_type != DT_REG)
 			continue;
 
-		fp = get_memo_file_ptr(ent->d_name, "r");
+		fp = get_memo_file_ptr(ent->d_name, "r", "");
 		if (fp == NULL) {
 			printf("%s\n", ent->d_name);
 			continue;
@@ -639,7 +618,7 @@ static int search_notes(char *category, const char *search)
 	int lines = 0;
 	struct Note note;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 
 	lines = count_file_lines(fp);
 
@@ -695,7 +674,7 @@ static int search_regexp(char *category, const char *regexp)
 		return -1;
 	}
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
@@ -770,7 +749,7 @@ static const char *export_html(char *category, const char *path)
 		return NULL;
 	}
 
-	fpm = get_memo_file_ptr(category, "r");
+	fpm = get_memo_file_ptr(category, "r", "");
 	lines = count_file_lines(fpm);
 
 	if (lines == -1) {
@@ -819,7 +798,7 @@ static void show_latest(char *category, int n)
 	int start;
 	int current = 0;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 
 	lines = count_file_lines(fp);
 
@@ -908,11 +887,11 @@ static int delete_note(char *category, int id)
 	char *memofile = NULL;
 	char *tmpfile = NULL;
 
-	tmpfp = get_memo_tmpfile_ptr(category);
+	tmpfp = get_memo_file_ptr(category, "w", ".tmp");
 	if (tmpfp == NULL)
 		return -1;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 	if (fp == NULL) {
 		fclose(tmpfp);
 		return -1;
@@ -1333,12 +1312,12 @@ static int replace_note(char *category, int id, const char *data)
 	char *tmpfile = NULL;
 	int lines = 0;
 
-	tmpfp = get_memo_tmpfile_ptr(category);
+	tmpfp = get_memo_file_ptr(category, "w", ".tmp");
 
 	if (tmpfp == NULL)
 		return -1;
 
-	fp = get_memo_file_ptr(category, "r");
+	fp = get_memo_file_ptr(category, "r", "");
 
 	lines = count_file_lines(fp);
 
@@ -1464,7 +1443,7 @@ static int add_note(char *category, char *content, const char *date)
 
 	remove_content_newlines(content);
 
-	fp = get_memo_file_ptr(category, "a");
+	fp = get_memo_file_ptr(category, "a", "");
 
 	if (fp == NULL) {
 		fail(stderr,"%s: Error opening stamp path\n", __func__);
