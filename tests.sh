@@ -21,6 +21,9 @@ setup() {
 
 @test "create note" {
     run ${STAMP} -a foobar testing
+    [ $status -eq 0 ]
+    run test -f ${STAMP_PATH}/foobar
+    [ $status -eq 0 ]
     shouldbe=$(date "+1%t%Y-%m-%d%ttesting")
     run cat "${STAMP_PATH}/foobar"
     [ $shouldbe = $lines ]
@@ -28,6 +31,7 @@ setup() {
 
 @test "create note with custom date" {
     run ${STAMP} -a foobar testing 1970-01-01
+    [ $status -eq 0 ]
     run cmp "${STAMP_PATH}/foobar" ${FIXTURE_TXT}
     [ $status -eq 0 ]
     # check some invalid dates
@@ -81,7 +85,7 @@ setup() {
 }
 
 @test "find searching for regex" {
-    skip "can't find a way to actually use the regexpes correclty"
+    skip "can't find a way to actually use the regexpes correctly"
 }
 
 @test "use stdin for add note" {
