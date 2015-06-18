@@ -4,10 +4,6 @@ PREFIX=/usr/local
 LDFLAGS=
 BATS=$$(which bats)
 
-ifeq ($(OS),Windows_NT)
-LDFLAGS=-lpcre
-endif
-
 ifdef DEBUG
 CFLAGS+= -ggdb -O0 -save-temps
 endif
