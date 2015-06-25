@@ -71,7 +71,7 @@ static int is_valid_date_format(const char *date, int silent_errors)
 
 	if (ret != 3) {
 		if (!silent_errors)
-			fail(stderr,"invalid date format: %s\n", date);
+			fail("invalid date format: %s\n", date);
 
 		return -1;
 	}
@@ -83,7 +83,7 @@ static int is_valid_date_format(const char *date, int silent_errors)
 	/* check month */
 	if (m <= 0 || m >= 13) {
 		if (!silent_errors)
-			fail(stderr, "%s: invalid month %d\n", __func__, m);
+			fail("%s: invalid month %d\n", __func__, m);
 
 		return -1;
 	}
@@ -91,7 +91,7 @@ static int is_valid_date_format(const char *date, int silent_errors)
 	/* check day */
 	if (d <= 0 || d > day_count[m - 1]) {
 		if (!silent_errors)
-			fail(stderr, "%s: invalid day %d\n", __func__, d);
+			fail("%s: invalid day %d\n", __func__, d);
 
 		return -1;
 	}
@@ -141,7 +141,7 @@ static int count_file_lines(FILE *fp)
 	int ch = 0;
 
 	if (!fp) {
-		fail(stderr,"%s: NULL file pointer\n", __func__);
+		fail("%s: NULL file pointer\n", __func__);
 		return -1;
 	}
 
@@ -166,12 +166,12 @@ static int count_file_lines(FILE *fp)
 
 
 /* A simple error reporting function */
-static void fail(FILE *out, const char *fmt, ...)
+static void fail(const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
-	vfprintf(out, fmt, ap);
+	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 }
 
@@ -187,7 +187,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode, char *suffix)
 	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr, "%s: error getting stamp path\n", __func__);
+		fail("%s: error getting stamp path\n", __func__);
 		return NULL;
 	}
 
@@ -195,7 +195,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode, char *suffix)
 	if (strlen(suffix) > 0) {
 		char *path_suffix = (char*) malloc(sizeof(char) * (strlen(path) + strlen(suffix) + 1));
 		if (path_suffix == NULL) {
-			fail(stderr, "%s: malloc failed\n", __func__);
+			fail("%s: malloc failed\n", __func__);
 			return NULL;
 		}
 
@@ -208,7 +208,7 @@ static FILE *get_memo_file_ptr(char *category, char *mode, char *suffix)
 		fp = fopen(path, mode);
 
 	if (fp == NULL)
-		fail(stderr, "%s: error opening file: %s\n", __func__, strerror(errno));
+		fail("%s: error opening file: %s\n", __func__, strerror(errno));
 
 	free(path);
 
@@ -238,7 +238,7 @@ static int add_notes_from_stdin(char *category)
 	char *line = NULL;
 
 	if ((buffer = (char*)malloc(sizeof(char) * length)) == NULL) {
-		fail(stderr, "%s: malloc failed\n", __func__);
+		fail("%s: malloc failed\n", __func__);
 		return -1;
 	}
 
@@ -248,7 +248,7 @@ static int add_notes_from_stdin(char *category)
 		if (count == length) {
 			length += 128;
 			if ((buffer = realloc(buffer, length)) == NULL) {
-				fail(stderr, "%s realloc failed\n", __func__);
+				fail("%s realloc failed\n", __func__);
 				return -1;
 			}
 		}
@@ -335,7 +335,7 @@ static int get_next_id(char *category)
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return -1;
 	}
 
@@ -406,7 +406,7 @@ static int show_notes(char *category)
 	count = lines;
 
 	if (lines == -1) {
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return -1;
 	}
 
@@ -463,7 +463,7 @@ static int show_notes_tree(char *category)
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr, "%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return -1;
 	}
 
@@ -488,7 +488,7 @@ static int show_notes_tree(char *category)
 		if (note.date == NULL) {
 			FREENOTE(note);
 			fclose(fp);
-			fail(stderr, "%s problem getting date\n",
+			fail("%s problem getting date\n",
 				__func__);
 			return -1;
 		}
@@ -565,14 +565,14 @@ static int show_categories()
 {
 	char *path = get_memo_file_path("");
 	if (path == NULL) {
-		fail(stderr,"%s: error getting stamp path\n",
+		fail("%s: error getting stamp path\n",
 			__func__);
 		return -1;
 	}
 
 	DIR *dir;
 	if ((dir = opendir(path)) == NULL) {
-		fail(stderr, "%s: could not open stamp path\n", __func__);
+		fail("%s: could not open stamp path\n", __func__);
 		return -1;
 	}
 
@@ -623,7 +623,7 @@ static int search_notes(char *category, const char *search)
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return -1;
 	}
 
@@ -670,7 +670,7 @@ static int search_regexp(char *category, const char *regexp)
 	ret = regcomp(&regex, regexp, REG_ICASE);
 
 	if (ret != 0) {
-		fail(stderr, "%s: invalid regexp\n", __func__);
+		fail("%s: invalid regexp\n", __func__);
 		return -1;
 	}
 
@@ -679,7 +679,7 @@ static int search_regexp(char *category, const char *regexp)
 
 	if (lines == -1) {
 		regfree(&regex);
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return -1;
 	}
 
@@ -704,7 +704,7 @@ static int search_regexp(char *category, const char *regexp)
 			/* Something went wrong while executing
 			   regexp. Clean up and exit loop. */
 			regerror(ret, &regex, buffer, sizeof(buffer));
-			fail(stderr, "%s: %s\n", __func__, buffer);
+			fail("%s: %s\n", __func__, buffer);
 			FREENOTE(note);
 			break;
 		}
@@ -745,7 +745,7 @@ static const char *export_html(char *category, const char *path)
 	fp = fopen(path, "w");
 
 	if (!fp) {
-		fail(stderr, "%s: failed to open %s\n", __func__, path);
+		fail("%s: failed to open %s\n", __func__, path);
 		return NULL;
 	}
 
@@ -753,7 +753,7 @@ static const char *export_html(char *category, const char *path)
 	lines = count_file_lines(fpm);
 
 	if (lines == -1) {
-		fail(stderr, "%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return NULL;
 	}
 
@@ -803,7 +803,7 @@ static void show_latest(char *category, int n)
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr,"%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		return;
 	}
 
@@ -848,7 +848,7 @@ static int delete_all(char *category)
 	char *path = get_memo_file_path(category);
 
 	if (path == NULL) {
-		fail(stderr,"%s error getting stamp file path\n", __func__);
+		fail("%s error getting stamp file path\n", __func__);
 		return -1;
 	}
 
@@ -857,14 +857,14 @@ static int delete_all(char *category)
 		char ch = getc(stdin);
 		if (ch == 'y' || ch == 'Y') {
 			if (remove(path) != 0) {
-				fail(stderr, 
+				fail(
 					"%s error removing %s\n", __func__, 
 					path);
 			}
 		}
 	} else {
 		if (remove(path) != 0)
-			fail(stderr,"%s error removing %s\n", __func__, path);
+			fail("%s error removing %s\n", __func__, path);
 	}
 
 	free(path);
@@ -900,7 +900,7 @@ static int delete_note(char *category, int id)
 	int lines = count_file_lines(fp);
 	if (lines < 0) {
 		if (lines == -1)
-			fail(stderr, "%s: counting lines failed\n", __func__);
+			fail("%s: counting lines failed\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -909,7 +909,7 @@ static int delete_note(char *category, int id)
 
 	memofile = get_memo_file_path(category);
 	if (memofile == NULL) {
-		fail(stderr, "%s failed to get stamp file path\n", __func__);
+		fail("%s failed to get stamp file path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -918,7 +918,7 @@ static int delete_note(char *category, int id)
 
 	tmpfile = get_temp_memo_path(category);
 	if (tmpfile == NULL) {
-		fail(stderr, "%s failed to get stamp tmp path\n", __func__);
+		fail("%s failed to get stamp tmp path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -946,7 +946,7 @@ static int delete_note(char *category, int id)
 				note.id,
 				note.date,
 				note.message)) < 0) {
-				fail(stderr, "%s: failed writing tmpfile: %s (%d)\n",
+				fail("%s: failed writing tmpfile: %s (%d)\n",
 					strerror(errno), errno);
 				retval = -1;
 			}
@@ -967,14 +967,14 @@ static int delete_note(char *category, int id)
 			if (retval == 0)
 				printf("note %d removed from category %s\n", id, category);
 			else {
-				fail(stderr, "could not rename %s to %s\n", tmpfile, memofile);
+				fail("could not rename %s to %s\n", tmpfile, memofile);
 				if (remove(tmpfile) != 0)
-					fail(stderr, "could not clean up %s either\n", tmpfile);
+					fail("could not clean up %s either\n", tmpfile);
 			}
 		} else {
 			/* ID not found, remove tmpfile */
 			remove(tmpfile);
-			fail(stderr, "note with ID %d not found in category %s\n", id, category);
+			fail("note with ID %d not found in category %s\n", id, category);
 			retval = -1;
 		}
 	}
@@ -998,7 +998,7 @@ static char *get_memo_conf_path()
 
 	env = getenv("HOME");
 	if (env == NULL) {
-		fail(stderr,"%s: getenv(\"HOME\") failed\n", __func__);
+		fail("%s: getenv(\"HOME\") failed\n", __func__);
 		return NULL;
 	}
 
@@ -1009,7 +1009,7 @@ static char *get_memo_conf_path()
 	conf_path = (char*)malloc( (len + 9) * sizeof(char));
 
 	if (conf_path == NULL) {
-		fail(stderr, "%s: malloc failed\n", __func__);
+		fail("%s: malloc failed\n", __func__);
 		return NULL;
 	}
 
@@ -1055,7 +1055,7 @@ static char *get_memo_conf_value(const char *prop)
 	int lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr, "%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		fclose(fp);
 		free(conf_path);
 
@@ -1078,7 +1078,7 @@ static char *get_memo_conf_value(const char *prop)
 				/* property does not have
 				 * a value. fail.
 				 */
-				fail(stderr, "%s: no value\n", prop);
+				fail("%s: no value\n", prop);
 				free(line);
 
 				break;
@@ -1088,7 +1088,7 @@ static char *get_memo_conf_value(const char *prop)
 			retval = (char*)malloc(len * sizeof(char));
 
 			if (retval == NULL) {
-				fail(stderr,"%s malloc\n", __func__);
+				fail("%s malloc\n", __func__);
 				free(line);
 
 				break;
@@ -1122,7 +1122,7 @@ static char *get_memo_default_path()
 	char *env = getenv("HOME");
 
 	if (env == NULL) {
-		fail(stderr,"%s: getenv(\"HOME\") failed\n", __func__);
+		fail("%s: getenv(\"HOME\") failed\n", __func__);
 		return NULL;
 	}
 
@@ -1133,7 +1133,7 @@ static char *get_memo_default_path()
 	path = (char*)malloc( (len + 7) * sizeof(char));
 
 	if (path == NULL) {
-		fail(stderr,"%s: malloc failed\n", __func__);
+		fail("%s: malloc failed\n", __func__);
 		return NULL;
 	}
 
@@ -1192,7 +1192,7 @@ static char *get_temp_memo_path(char *category)
 
 	if (tmp == NULL) {
 		free(orig);
-		fail(stderr,"%s: malloc failed\n", __func__);
+		fail("%s: malloc failed\n", __func__);
 		return NULL;
 	}
 
@@ -1239,7 +1239,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 	new_line = (char*)malloc(size);
 
 	if (new_line == NULL) {
-		fail(stderr, "%s: malloc failed\n", __func__);
+		fail("%s: malloc failed\n", __func__);
 		return NULL;
 	}
 
@@ -1287,7 +1287,7 @@ static char *note_part_replace(NotePart_t part, char *note_line, const char *dat
 	return new_line;
 
 error_clean_up:
-	fail(stderr, "%s: replacing note data failed\n", __func__);
+	fail("%s: replacing note data failed\n", __func__);
 	free(new_line);
 
 	return NULL;
@@ -1322,7 +1322,7 @@ static int replace_note(char *category, int id, const char *data)
 	lines = count_file_lines(fp);
 
 	if (lines == -1) {
-		fail(stderr, "%s: counting lines failed\n", __func__);
+		fail("%s: counting lines failed\n", __func__);
 		fclose(tmpfp);
 
 		return -1;
@@ -1339,7 +1339,7 @@ static int replace_note(char *category, int id, const char *data)
 	memofile = get_memo_file_path(category);
 
 	if (memofile == NULL) {
-		fail(stderr, "%s failed to get stamp file path\n", __func__);
+		fail("%s failed to get stamp file path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -1349,7 +1349,7 @@ static int replace_note(char *category, int id, const char *data)
 	tmpfile = get_temp_memo_path(category);
 
 	if (tmpfile == NULL) {
-		fail(stderr, "%s failed to get stamp tmp path\n", __func__);
+		fail("%s failed to get stamp tmp path\n", __func__);
 		fclose(fp);
 		fclose(tmpfp);
 
@@ -1446,7 +1446,7 @@ static int add_note(char *category, char *content, const char *date)
 	fp = get_memo_file_ptr(category, "a", "");
 
 	if (fp == NULL) {
-		fail(stderr,"%s: Error opening stamp path\n", __func__);
+		fail("%s: Error opening stamp path\n", __func__);
 		return -1;
 	}
 
@@ -1523,7 +1523,7 @@ static void show_memo_file_path()
 	path = get_memo_file_path("");
 
 	if (path == NULL)
-		fail(stderr,"%s: can't retrieve path\n", __func__);
+		fail("%s: can't retrieve path\n", __func__);
 	else
 		printf("%s\n", path);
 }

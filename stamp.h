@@ -74,7 +74,7 @@ static void        output_without_date(struct Note note);
 static void        show_latest(char *category, int count);
 static FILE       *get_memo_file_ptr();
 static void        usage();
-static void        fail(FILE *out, const char *fmt, ...);
+static void        fail(const char *fmt, ...);
 static int         delete_all(char *category);
 static void        show_memo_file_path();
 
@@ -83,7 +83,7 @@ static void        show_memo_file_path();
 #define ARGCHECK(x, y, z) if (argc < y) { \
     char *err = (char *)malloc((19 + strlen(z)) * sizeof(char));\
     sprintf(err, "Error: -%s missing an argument %s\n", x, z); \
-    fail(stderr, err); \
+    fail(err); \
     free(err); \
     usage(); \
     return 1;\
@@ -92,5 +92,11 @@ static void        show_memo_file_path();
 #define FREENOTE(x) if (x.message) free(x.message);
 
 #define VERSION 1.4
+
+#ifdef DEBUG
+# define LOGDEBUG fail
+#else
+# define LOGDEBUG(...)
+#endif
 
 #endif /* _STAMP_H */

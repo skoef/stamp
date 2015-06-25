@@ -5,7 +5,7 @@ LDFLAGS=
 BATS=$$(which bats)
 
 ifdef DEBUG
-CFLAGS+= -ggdb -O0 -save-temps
+CFLAGS+= -ggdb -O0 -save-temps -DDEBUG=1
 endif
 
 all: stamp
