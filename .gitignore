@@ -1,4 +1,5 @@
 *.i
 *.o
 *.s
+*.core
 stamp
